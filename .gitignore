@@ -1,4 +1,5 @@
 __pycache__
+.vscode
 *.mtx
 *.egg-info
 *.csv
@@ -6,3 +7,9 @@ __pycache__
 *.pdf
 *.npy
 *.pt
+trained_models/
+test_chembl23/
+build/
+dist/
+sparsechem.code-workspace
+train.bat

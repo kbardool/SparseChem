@@ -14,6 +14,7 @@ import torch.nn.functional as F
 from sparsechem import censored_mse_loss_numpy
 from collections import namedtuple
 from scipy.sparse import csr_matrix
+import argparse
 
 class Nothing(object):
     def __getattr__(self, name):
@@ -90,6 +91,9 @@ def all_metrics(y_true, y_score):
     return df
 
 def compute_corr(x, y):
+    """
+    Compute correlation     
+    """
     if len(y) <= 1:
         return np.nan
     ystd = y.std()
@@ -99,6 +103,16 @@ def compute_corr(x, y):
     return np.dot((x - x.mean()), (y - y.mean())) / len(y) / y.std() / x.std()
 
 def all_metrics_regr(y_true, y_score, y_censor=None):
+    """
+    Calculate Regression Metrics 
+        y_true     true labels (0 / 1)
+        y_score    logit values
+    Returns:
+        dataframe with 
+        rmse
+        rmse_uncen      rmse on uncensored obervations ?
+
+    """
     if len(y_true) <= 1:
         df = pd.DataFrame({"rmse": [np.nan], "rmse_uncen": [np.nan], "rsquared": [np.nan], "corrcoef": [np.nan]})
         return df
@@ -168,6 +182,12 @@ def compute_metrics_regr(cols, y_true, y_score, num_tasks, y_censor=None):
     return metrics.reindex(np.arange(num_tasks))
 
 def class_fold_counts(y_class, folding):
+    """
+    Create matrix containing number of pos/neg labels falling into the folding scheme
+
+    If the folding consists of 5 unique folds, we sum the number of Y's falling into each fold by 
+    Y class. Result is 5 x 100
+    """
     folds = np.unique(folding)
     num_pos = []
     num_neg = []
@@ -342,6 +362,9 @@ def train_binary(net, optimizer, loader, loss, dev, task_weights, normalize_loss
         optimizer.step()
     return logloss_sum / logloss_count
 
+##
+## batch_forward
+##
 def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weights_regr, censored_weight=[], dev="cpu"):
     """returns full outputs from the network for the batch b"""
     X = torch.sparse_coo_tensor(
@@ -397,6 +420,8 @@ def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weig
 def train_class_regr(net, optimizer, loader, loss_class, loss_regr, dev,
                      weights_class, weights_regr, censored_weight,
                      normalize_loss=None, num_int_batches=1, progress=True):
+    
+    ## Set the model in training mode.
     net.train()
 
     int_count = 0
@@ -408,9 +433,14 @@ def train_class_regr(net, optimizer, loader, loss_class, loss_regr, dev,
         if norm is None:
             norm = b["batch_size"] * num_int_batches
 
-        fwd = batch_forward(net, b=b, input_size=loader.dataset.input_size, loss_class=loss_class, loss_regr=loss_regr, weights_class=weights_class, weights_regr=weights_regr, censored_weight=censored_weight, dev=dev)
+        fwd = batch_forward(net, b=b, 
+                            input_size=loader.dataset.input_size, 
+                            loss_class=loss_class, loss_regr=loss_regr, 
+                            weights_class=weights_class, weights_regr=weights_regr, censored_weight=censored_weight, 
+                            dev=dev)
         loss = fwd["yc_loss"] + fwd["yr_loss"]
         loss_norm = loss / norm
+        
         loss_norm.backward()
 
         int_count += 1
@@ -553,6 +583,7 @@ def predict_hidden(net, loader, dev, progress=True, dropout=False):
     return torch.cat(out_list, dim=0)
 
 class SparseCollector(object):
+    
     def __init__(self, label):
         self.y_hat_list = []
         self.y_row_list = []
@@ -684,11 +715,13 @@ def load_check_sparse(filename, shape):
     return y
 
 def load_task_weights(filename, y, label):
-    """Loads and processes task weights, otherwise raises an error using the label.
+    """
+    Loads and processes task weights, otherwise raises an error using the label.
     Args:
         df      DataFrame with weights
         y       csr matrix of labels
         label   name for error messages
+    
     Returns tuple of
         training_weight
         aggregation_weight
@@ -806,3 +839,45 @@ def keep_row_data(y, keep):
     ycoo = y.tocoo()
     mask = keep[ycoo.row]
     return csr_matrix((ycoo.data[mask], (ycoo.row[mask], ycoo.col[mask])), shape=y.shape)
+
+def training_arguments():
+    parser = argparse.ArgumentParser(description="Training a multi-task model.")
+    parser.add_argument("--x"                 , help="Descriptor file (matrix market, .npy or .npz)", type=str, default=None)
+    parser.add_argument("--y_class", "--y", "--y_classification", help="Activity file (matrix market, .npy or .npz)", type=str, default=None)
+    parser.add_argument("--y_regr" , "--y_regression", help="Activity file (matrix market, .npy or .npz)", type=str, default=None)
+    parser.add_argument("--y_censor"          , help="Censor mask for regression (matrix market, .npy or .npz)", type=str, default=None)
+    parser.add_argument("--batch_ratio"       , help="Batch ratio", type=float, default=0.02)
+    parser.add_argument("--censored_loss"     , help="Whether censored loss is used for training (default 1)", type=int, default=1)
+    parser.add_argument("--dev"               , help="Device to use", type=str, default="cuda:0")
+    parser.add_argument("--epochs"            , help="Number of epochs", type=int, default=20)
+    parser.add_argument("--eval_train"        , help="Set this to 1 to calculate AUCs for train data", type=int, default=0)
+    parser.add_argument("--eval_frequency"    , help="The gap between AUC eval (in epochs), -1 means to do an eval at the end.", type=int, default=1)
+    parser.add_argument("--folding"           , help="Folding file (npy)", type=str, required=True)
+    parser.add_argument("--fold_inputs"       , help="Fold input to a fixed set (default no folding)", type=int, default=None)
+    parser.add_argument("--fold_va"           , help="Validation fold number", type=int, default=0)
+    parser.add_argument("--fold_te"           , help="Test fold number (removed from dataset)", type=int, default=None)
+    parser.add_argument("--hidden_sizes"      , nargs="+", help="Hidden sizes", default=[], type=int, required=True)
+    parser.add_argument("--input_transform"   , help="Transformation to apply to inputs", type=str, default="none", choices=["binarize", "none", "tanh", "log1p"])
+    parser.add_argument("--input_size_freq"   , help="Number of high importance features", type=int, default=None)
+    parser.add_argument("--internal_batch_max", help="Maximum size of the internal batch", type=int, default=None)
+    parser.add_argument("--last_dropout"      , help="Last dropout", type=float, default=0.2)
+    parser.add_argument("--last_non_linearity", help="Last layer non-linearity", type=str, default="relu", choices=["relu", "tanh"])
+    parser.add_argument("--lr"                , help="Learning rate", type=float, default=1e-3)
+    parser.add_argument("--lr_alpha"          , help="Learning rate decay multiplier", type=float, default=0.3)
+    parser.add_argument("--lr_steps"          , nargs="+", help="Learning rate decay steps", type=int, default=[10])
+    parser.add_argument("--middle_dropout"    , help="Dropout for layers before the last", type=float, default=0.0)
+    parser.add_argument("--middle_non_linearity", "--non_linearity", help="Before last layer non-linearity", type=str, default="relu", choices=["relu", "tanh"])
+    parser.add_argument("--min_samples_class", help="Minimum number samples in each class and in each fold for AUC calculation (only used if aggregation_weight is not provided in --weights_class)", type=int, default=5)
+    parser.add_argument("--min_samples_auc"  , help="Obsolete: use 'min_samples_class'", type=int, default=None)
+    parser.add_argument("--min_samples_regr" , help="Minimum number of uncensored samples in each fold for regression metric calculation (only used if aggregation_weight is not provided in --weights_regr)", type=int, default=10)
+    parser.add_argument("--normalize_loss"   , help="Normalization constant to divide the loss (default uses batch size)", type=float, default=None)
+    parser.add_argument("--output_dir"       , help="Output directory, including boards (default 'models')", type=str, default="models")
+    parser.add_argument("--prefix"           , help="Prefix for run name (default 'run')", type=str, default='run')
+    parser.add_argument("--run_name"         , help="Run name for results", type=str, default=None)
+    parser.add_argument("--save_model"       , help="Set this to 0 if the model should not be saved", type=int, default=1)
+    parser.add_argument("--save_board"       , help="Set this to 0 if the TensorBoard should not be saved", type=int, default=1)
+    parser.add_argument("--verbose"          , help="Verbosity level: 2 = full; 1 = no progress; 0 = no output", type=int, default=2, choices=[0, 1, 2])
+    parser.add_argument("--weights_class"    , "--task_weights", "--weights_classification", help="CSV file with columns task_id, training_weight, aggregation_weight, task_type (for classification tasks)", type=str, default=None)
+    parser.add_argument("--weight_decay"     , help="Weight decay", type=float, default=0.0)
+    parser.add_argument("--weights_regr"     , "--weights_regression", help="CSV file with columns task_id, training_weight, censored_weight, aggregation_weight, aggregation_weight, task_type (for regression tasks)", type=str, default=None)
+    return parser
