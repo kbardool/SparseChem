@@ -1,0 +1,104 @@
+(pytorch) kbardool@MSI:~/git-local/SparseChem/examples/chembl$ python3 test_train.py
+Call test_classification with dev: cpu , data_dir: test_chembl23 
+
+Call download_chembl23 with data_dir: test_chembl23 , output dir:  ./test_chembl23/models-czwjqumiwaod/
+
+File chembl_23mini_x.npy                  already exists in  test_chembl23                      
+File chembl_23mini_y.npy                  already exists in  test_chembl23                      
+File chembl_23mini_folds.npy              already exists in  test_chembl23                      
+File chembl_23mini_class_weights.csv      already exists in  test_chembl23                      
+File chembl_23mini_regr_weights.csv       already exists in  test_chembl23                      
+File chembl_23mini_y_censored.npy         already exists in  test_chembl23                      
+
+Args : 
+--------------
+
+ Run name is 'sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone'.
+
+ save_board is '1' - will be written to ./test_chembl23/models-czwjqumiwaod/boards/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.
+
+
+
+ecfp shape           : (18388, 85277)
+y_class shape        : (18388, 100)
+Created y_regr shape         : (18388, 0)
+Created y_censor shape       : (18388, 0)
+Input dimension      : 85277
+#samples             : 18388
+#classification tasks: 100
+#regression tasks    : 0
+Using 6 classification tasks for calculating aggregated metrics (AUCROC, F1_max, etc).
+Using 0 regression tasks for calculating metrics (RMSE, Rsquared, correlation).
+#internal batch size:   1464
+Network:
+SparseFFN(
+  (net): Sequential(
+    (0): SparseInputNet(
+      (net_freq): SparseLinear(in_features=85277, out_features=20, bias=True)
+    )
+    (1): MiddleNet(
+      (net): Sequential()
+    )
+    (2): LastNet(
+      (net): Sequential(
+        (0): ReLU()
+        (1): Dropout(p=0.2, inplace=False)
+        (2): Linear(in_features=20, out_features=100, bias=True)
+      )
+    )
+  )
+)
+Epoch  |     logl  bceloss   aucroc    aucpr   f1_max |      rmse  rsquared  corrcoef | tr_time 
+0      |  0.47260  0.50306  0.95914  0.93794  0.93755 |       nan       nan       nan |    6.1 
+1      |  0.42869  0.46635  0.96015  0.93814  0.93678 |       nan       nan       nan |    0.6 
+
+Saving performance metrics (AUCs) and model.
+Saved model weights into './test_chembl23/models-czwjqumiwaod//sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.pt'.
+Saved config and results into './test_chembl23/models-czwjqumiwaod//sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.json'.
+You can load the results by:
+  import sparsechem as sc
+  res = sc.load_results('./test_chembl23/models-czwjqumiwaod//sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.json')
+
+
+
+
+
+Predict 
+-----------------------------
+Namespace(x='./test_chembl23/chembl_23mini_x.npy', y_class=None, y_regr=None, folding=None, predict_fold=None, outprefix='./test_chembl23/models-czwjqumiwaod//yhat', conf='./test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.json', model='./test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.pt', batch_size=4000, last_hidden=0, dropout=0, dev='cpu')
+Input dimension: 85277
+#samples:        18388
+Model weights:   './test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.pt'
+Model config:    './test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.json'.
+Saved prediction matrix (numpy) for classification to './test_chembl23/models-czwjqumiwaod//yhat-class.npy'.                                             
+
+
+Predict with --last_hidden 1 
+-----------------------------
+Namespace(x='./test_chembl23/chembl_23mini_x.npy', y_class=None, y_regr=None, folding=None, predict_fold=None, outprefix='./test_chembl23/models-czwjqumiwaod//yhat', conf='./test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.json', model='./test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.pt', batch_size=4000, last_hidden=1, dropout=0, dev='cpu')
+Input dimension: 85277
+#samples:        18388
+Model weights:   './test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.pt'
+Model config:    './test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.json'.
+Saved (numpy) matrix of hiddens to './test_chembl23/models-czwjqumiwaod//yhat-hidden.npy'.                                                               
+
+
+Predict with --y_class
+-----------------------------
+Namespace(x='./test_chembl23/chembl_23mini_x.npy', y_class='./test_chembl23/chembl_23mini_y.npy', y_regr=None, folding=None, predict_fold=None, outprefix='./test_chembl23/models-czwjqumiwaod//yhat', conf='./test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.json', model='./test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.pt', batch_size=4000, last_hidden=0, dropout=0, dev='cpu')
+Input dimension: 85277
+#samples:        18388
+Model weights:   './test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.pt'
+Model config:    './test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.json'.
+Saved prediction matrix (numpy) for classification to './test_chembl23/models-czwjqumiwaod//yhat-class.npy'.                                             
+
+
+Predict with --folding 
+-----------------------------
+Namespace(x='./test_chembl23/chembl_23mini_x.npy', y_class='./test_chembl23/chembl_23mini_y.npy', y_regr=None, folding='./test_chembl23/chembl_23mini_folds.npy', predict_fold=[1, 2], outprefix='./test_chembl23/models-czwjqumiwaod//yhat', conf='./test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.json', model='./test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.pt', batch_size=4000, last_hidden=0, dropout=0, dev='cpu')
+Input dimension: 85277
+#samples:        18388
+Model weights:   './test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.pt'
+Model config:    './test_chembl23/models-czwjqumiwaod/sc_run_h20_ldo0.2_wd0.0_lr0.001_lrsteps1_ep2_fva0_fteNone.json'.
+Saved prediction matrix (numpy) for classification to './test_chembl23/models-czwjqumiwaod//yhat-class.npy'.                                             
+results in ./test_chembl23/models-czwjqumiwaod/

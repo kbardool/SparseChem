@@ -91,16 +91,52 @@ def sparse_split2(tensor, split_size, dim=0):
     return X0, X1
 
 
+##
+## SparseLinear Layer
+##
+class SparseLinear(torch.nn.Module):
+    """
+    Linear layer with sparse input tensor, and dense output.
+        in_features    size of input
+        out_features   size of output
+        bias           whether to add bias
+    """
+    def __init__(self, in_features, out_features, bias=True):
+        super(SparseLinear, self).__init__()
+        self.weight = nn.Parameter(torch.randn(in_features, out_features) / math.sqrt(out_features))
+        if bias:
+            self.bias = nn.Parameter(torch.zeros(out_features))
+        else:
+            self.register_parameter('bias', None)
 
+    def forward(self, input):
+        out = torch.mm(input, self.weight)
+        if self.bias is not None:
+            return out + self.bias
+        return out
+
+    def extra_repr(self):
+        return 'in_features={}, out_features={}, bias={}'.format(
+            self.weight.shape[0], self.weight.shape[1], self.bias is not None
+        )
+
+##
+## InputNet Segment 
+##
 class SparseInputNet(torch.nn.Module):
     def __init__(self, conf):
         super().__init__()
         if conf.input_size_freq is None:
             conf.input_size_freq = conf.input_size
+        
         assert conf.input_size_freq <= conf.input_size, f"Number of high important features ({conf.input_size_freq}) should not be higher input size ({conf.input_size})."
         self.input_splits = [conf.input_size_freq, conf.input_size - conf.input_size_freq]
         self.net_freq   = SparseLinear(self.input_splits[0], conf.hidden_sizes[0], device_type= conf.dev)
-
+        
+        print(f" input_size_freq: {conf.input_size_freq}    input_size: {conf.input_size}")
+        print(f" self.input_splits: {self.input_splits}")
+        # print(f" tail_hidden_size is {conf.tail_hidden_size}")
+        
         if self.input_splits[1] == 0:
             self.net_rare = None
         else:
@@ -121,14 +157,19 @@ class SparseInputNet(torch.nn.Module):
             if m.bias is not None:
                 m.bias.data.fill_(0.1)
 
-
     def forward(self, X):
         if self.input_splits[1] == 0:
             return self.net_freq(X)
         Xfreq, Xrare = sparse_split2(X, self.input_splits[0], dim=1)
         return self.net_freq(Xfreq) + self.net_rare(Xrare)
 
+##
+## MiddleNet Segment 
+##
 class MiddleNet(torch.nn.Module):
+    """
+    Additional hidden layers (hidden_sizes[1:]) are defined here 
+    """
     def __init__(self, conf):
         super().__init__()
         self.net = nn.Sequential()
@@ -222,9 +263,13 @@ class LastNet(torch.nn.Module):
     def forward(self, H):
         return self.net(H)
 
+##
+##  SparseFFN : Complete network
+##  
 class SparseFFN(torch.nn.Module):
     def __init__(self, conf):
         super().__init__()
+        print(f" defining SparseFFN")
         if hasattr(conf, "class_output_size"):
             self.class_output_size = conf.class_output_size
             self.regr_output_size  = conf.regr_output_size
@@ -333,6 +378,9 @@ class SparseFFN_combined(nn.Module):
        return out
      ## splitting to class and regression
     return out[:, :self.class_output_size], out[:, self.class_output_size:]
+
+
+
 
 def censored_mse_loss(input, target, censor, censored_enabled=True):
     """

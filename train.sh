@@ -1,0 +1,15 @@
+python train.py \
+  --x ./chembl_23_x.mtx \
+  --y ./chembl_23_y.mtx \
+  --folding ./folding_hier_0.6.npy \
+  --fold_va 0 \
+  --batch_ratio    0.02 \
+  --hidden_sizes   400 \
+  --last_dropout   0.2 \
+  --middle_dropout 0.2 \
+  --weight_decay   0.0 \
+  --epochs         20 \
+  --lr             1e-3 \
+  --lr_steps       10 \
+  --lr_alpha       0.3 \
+  --dev            cpu

@@ -11,7 +11,7 @@ class SparseDataset(Dataset):
     def __init__(self, x, y):
         '''
         Args:
-            X (sparse matrix):  input [n_sampes, features_in]
+            X (sparse matrix):  input [n_samples, features_in]
             Y (sparse matrix):  output [n_samples, features_out]
         '''
         assert x.shape[0]==y.shape[0], f"Input has {x.shape[0]} rows, output has {y.shape[0]} rows."
@@ -110,8 +110,8 @@ class ClassRegrSparseDataset(Dataset):
         Creates dataset for two outputs Y.
         Args:
             x (sparse matrix):        input [n_sampes, features_in]
-            y_class (sparse matrix):  class data [n_samples, class_tasks]
-            y_regr (sparse matrix):   regression data [n_samples, regr_tasks]
+            y_class  (sparse matrix): class data [n_samples, class_tasks]
+            y_regr   (sparse matrix): regression data [n_samples, regr_tasks]
             y_censor (sparse matrix): censoring matrix, for regression data [n_samples, regr_task]
             y_cat_columns (numpy array): column indices representing catalogue task [n_cat_tasks]
         '''
