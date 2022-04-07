@@ -464,6 +464,7 @@ def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weig
         b["x_ind"],
         b["x_data"],
         size = [b["batch_size"], input_size]).to(dev, non_blocking=True)
+    
     if net.cat_id_size is None:
         yc_hat_all, yr_hat_all = net(X)
     else:
@@ -471,6 +472,7 @@ def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weig
     if normalize_inv is not None:
        #inverse normalization
        yr_hat_all = inverse_normalization(yr_hat_all, normalize_inv["mean"], normalize_inv["var"], dev).to(dev)
+    
     out = {}
     out["yc_hat_all"] = yc_hat_all
     out["yr_hat_all"] = yr_hat_all
@@ -479,6 +481,8 @@ def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weig
     out["yc_weights"] = 0
     out["yr_weights"] = 0
     out["yc_cat_loss"] = 0 
+    
+    
     if net.class_output_size > 0:
         yc_ind  = b["yc_ind"].to(dev, non_blocking=True)
         yc_w    = weights_class[yc_ind[1]]
@@ -499,6 +503,8 @@ def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weig
                yc_hat  = yc_hat_all[yc_ind[0], yc_ind[1]]
                out["yc_hat"]  = yc_hat
             out["yc_cat_loss"] = loss_class(yc_cat_hat, yc_cat_data).sum() 
+
+
     if net.regr_output_size > 0:
         yr_ind  = b["yr_ind"].to(dev, non_blocking=True)
         yr_w    = weights_regr[yr_ind[1]]
@@ -539,12 +545,15 @@ def train_class_regr(net, optimizer, loader, loss_class, loss_regr, dev,
         norm = normalize_loss
         if norm is None:
             norm = b["batch_size"] * num_int_batches
+
         if args.mixed_precision == 1:
             mixed_precision = True
         else:
             mixed_precision = False
+
         with torch.cuda.amp.autocast(enabled=mixed_precision):
              fwd = batch_forward(net, b=b, input_size=loader.dataset.input_size, loss_class=loss_class, loss_regr=loss_regr, weights_class=weights_class, weights_regr=weights_regr, censored_weight=censored_weight, dev=dev)
+        
         if writer is not None and reporter is not None:
             info = nvmlDeviceGetMemoryInfo(nvml_handle)
             #writer.add_scalar("GPUmem", torch.cuda.memory_allocated() / 1024 ** 2, 3*(int_count+num_int_batches*batch_count+epoch*num_int_batches*b["batch_size"])) 
@@ -557,16 +566,18 @@ def train_class_regr(net, optimizer, loader, loss_class, loss_regr, dev,
         loss = fwd["yc_loss"] + fwd["yr_loss"] + fwd["yc_cat_loss"] + net.GetRegularizer()
 
         loss_norm = loss / norm
-             #loss_norm.backward()
+ 
         if mixed_precision:
            scaler.scale(loss_norm).backward()
         else:
            loss_norm.backward()
+
         if writer is not None and reporter is not None:
                 info = nvmlDeviceGetMemoryInfo(nvml_handle)
                 #writer.add_scalar("GPUmem", torch.cuda.memory_allocated() / 1024 ** 2, 3*(int_count+num_int_batches*batch_count+epoch*num_int_batches*b["batch_size"])+1) 
                 writer.add_scalar("GPUmem", float("{}".format(info.used >> 20)), 3*(int_count+num_int_batches*batch_count+epoch*num_int_batches*b["batch_size"])+1) 
         int_count += 1
+        
         if int_count == num_int_batches:
            if mixed_precision and not isinstance(optimizer,Nothing):
                scaler.step(optimizer)
@@ -641,6 +652,8 @@ def evaluate_class_regr(net, loader, loss_class, loss_regr, tasks_class, tasks_r
             yc_ind  = torch.cat(data["yc_ind"], dim=1).numpy()
             yc_data = torch.cat(data["yc_data"], dim=0).numpy()
             yc_hat  = torch.cat(data["yc_hat"], dim=0).numpy()
+
+            
             out["classification"] = compute_metrics(yc_ind[1], y_true=yc_data, y_score=yc_hat, num_tasks=num_class_tasks, cal_fact_aucpr=cal_fact_aucpr)
             out["classification_agg"] = aggregate_results(out["classification"], weights=class_w)
             out["classification_agg"]["logloss"] = loss_class_sum.cpu().item() / loss_class_weights.cpu().item()
