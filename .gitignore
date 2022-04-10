@@ -7,6 +7,6 @@ __pycache__
 *.npy
 *.pt
 .idea
-*.ipynb
 *.code-workspace
 metrics_dev.*
+.ipynb_checkpoints/

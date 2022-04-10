@@ -292,32 +292,7 @@ def class_fold_counts(y_class, folding):
     return np.row_stack(num_pos), np.row_stack(num_neg)
 
 
-def print_metrics(epoch, train_time, metrics_tr, metrics_va, header):
-    if metrics_tr is None:
-        if header:
-            print("Epoch\tlogl_va |  auc_va | aucpr_va | aucpr_cal_va | maxf1_va | tr_time")
-        output_fstr = (
-            f"{epoch}.\t{metrics_va['logloss']:.5f}"
-            f" | {metrics_va['roc_auc_score']:.5f}"
-            f" |  {metrics_va['auc_pr']:.5f}"
-            f" |  {metrics_va['auc_pr_cal']:.5f}"
-            f" |  {metrics_va['f1_max']:.5f}"
-            f" | {train_time:6.1f}"
-        )
-        print(output_fstr)
-        return
 
-    ## full print
-    if header:
-        print("Epoch\tlogl_tr  logl_va |  auc_tr   auc_va | aucpr_tr  aucpr_va | maxf1_tr  maxf1_va | tr_time")
-    output_fstr = (
-        f"{epoch}.\t{metrics_tr['logloss']:.5f}  {metrics_va['logloss']:.5f}"
-        f" | {metrics_tr['roc_auc_score']:.5f}  {metrics_va['roc_auc_score']:.5f}"
-        f" |  {metrics_tr['auc_pr']:.5f}   {metrics_va['auc_pr']:.5f}"
-        f" |  {metrics_tr['f1_max']:.5f}   {metrics_va['f1_max']:.5f}"
-        f" | {train_time:6.1f}"
-    )
-    print(output_fstr)
 
 def print_table(formats, data):
     for key, fmt in formats.items():
@@ -327,12 +302,13 @@ Column = namedtuple("Column", "key size dec title")
 columns_cr = [
     Column("epoch",         size=6, dec= 0, title="Epoch"),
     Column(None,            size=1, dec=-1, title="|"),
-    Column("logloss",       size=8, dec= 5, title="logl"),
-    Column("bceloss",       size=8, dec= 5, title="bceloss"),
-    Column("roc_auc_score", size=8, dec= 5, title="aucroc"),
-    Column("auc_pr",        size=8, dec= 5, title="aucpr"),
+    Column("logloss",       size=9, dec= 5, title="logl"),
+    Column("bceloss",       size=9, dec= 5, title="bceloss"),
+    Column("avg_prec_score",size=9, dec= 5, title="avg prec"),
+    Column("roc_auc_score", size=9, dec= 5, title="auc roc"),
+    Column("auc_pr",        size=9, dec= 5, title="auc pr"),
     Column("auc_pr_cal",    size=9, dec= 5, title="aucpr_cal"),
-    Column("f1_max",        size=8, dec= 5, title="f1_max"),
+    Column("f1_max",        size=9, dec= 5, title="f1_max"),
     Column(None,            size=1, dec=-1, title="|"),
     Column("rmse",          size=9, dec= 5, title="rmse"),
     Column("rsquared",      size=9, dec= 5, title="rsquared"),
@@ -360,6 +336,34 @@ def print_metrics_cr(epoch, train_time, results_tr, results_va, header):
     for i, col in enumerate(columns_cr):
         print_cell(data.get(col.key, col.title), col.size, dec=col.dec, left=(i==0))
     print()
+
+def print_metrics(epoch, train_time, metrics_tr, metrics_va, header):
+    if metrics_tr is None:
+        if header:
+            print("Epoch\tlogl_va |  auc_va | aucpr_va | aucpr_cal_va | maxf1_va | tr_time")
+        output_fstr = (
+            f"{epoch}.\t{metrics_va['classification_agg']['logloss']:.5f}"
+            f" | {metrics_va['classification_agg']['roc_auc_score']:.5f}"
+            f" | {metrics_va['classification_agg']['auc_pr']:.5f}"
+            f" | {metrics_va['classification_agg']['auc_pr_cal']:.5f}"
+            f" | {metrics_va['f1_max']:.5f}"
+            f" | {train_time:6.1f}"
+        )
+        print(output_fstr)
+        return
+
+    ## full print
+    if header:
+        print("Epoch\tlogl_tr  logl_va |  auc_tr   auc_va | aucpr_tr  aucpr_va | maxf1_tr  maxf1_va | tr_time")
+    output_fstr = (
+        f"{epoch}.\t{metrics_tr['classification_agg']['logloss']:.5f}  {metrics_va['classification_agg']['logloss']:.5f}"
+        f" | {metrics_tr['classification_agg']['roc_auc_score']:.5f}  {metrics_va['classification_agg']['roc_auc_score']:.5f}"
+        f" | {metrics_tr['classification_agg']['auc_pr']:.5f}   {metrics_va['classification_agg']['auc_pr']:.5f}"
+        f" | {metrics_tr['classification_agg']['f1_max']:.5f}   {metrics_va['classification_agg']['f1_max']:.5f}"
+        f" | {train_time:6.1f}"
+    )
+    print(output_fstr)
+
 
 def evaluate_binary(net, loader, loss, dev, progress=True):
     net.eval()
