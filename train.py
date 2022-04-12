@@ -129,10 +129,9 @@ parser.add_argument("--dropouts_trunk", nargs="+", help="List of dropout values 
 
 args = parser.parse_args()
 rstr = datetime.now().strftime("%m%d_%H%M")
-data_dir = "../MLDatasets/chembl23_mini"
-args.x       = os.path.join(data_dir, args.x)
-args.y_class = os.path.join(data_dir, args.y_class)
-args.folding = os.path.join(data_dir, args.folding)
+args.x       = os.path.join(args.data_dir, args.x)
+args.y_class = os.path.join(args.data_dir, args.y_class)
+args.folding = os.path.join(args.data_dir, args.folding)
 args.output_dir = os.path.join(args.output_dir, rstr)
 print(args.output_dir)
 
