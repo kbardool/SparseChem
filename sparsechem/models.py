@@ -39,8 +39,9 @@ class SparseLinear(torch.nn.Module):
         out_features   size of output
         bias           whether to add bias
     """
-    def __init__(self, in_features, out_features, bias=True):
+    def __init__(self, in_features, out_features, bias=True, device_type = None):
         super(SparseLinear, self).__init__()
+        self.device_type = device_type
         self.weight = nn.Parameter(torch.randn(in_features, out_features) / math.sqrt(out_features))
         if bias:
             self.bias = nn.Parameter(torch.zeros(out_features))
@@ -48,6 +49,7 @@ class SparseLinear(torch.nn.Module):
             self.register_parameter('bias', None)
 
     def forward(self, input):
+        # with torch.autocast_mode.autocast(device_type = self.device_type,enabled=False):
         with torch.cuda.amp.autocast(enabled=False):
             out = torch.mm(input, self.weight)
         if self.bias is not None:
@@ -97,7 +99,7 @@ class SparseInputNet(torch.nn.Module):
             conf.input_size_freq = conf.input_size
         assert conf.input_size_freq <= conf.input_size, f"Number of high important features ({conf.input_size_freq}) should not be higher input size ({conf.input_size})."
         self.input_splits = [conf.input_size_freq, conf.input_size - conf.input_size_freq]
-        self.net_freq   = SparseLinear(self.input_splits[0], conf.hidden_sizes[0])
+        self.net_freq   = SparseLinear(self.input_splits[0], conf.hidden_sizes[0], device_type= conf.dev)
 
         if self.input_splits[1] == 0:
             self.net_rare = None
@@ -105,7 +107,7 @@ class SparseInputNet(torch.nn.Module):
             ## TODO: try adding nn.ReLU() after SparseLinear
             ## Bias is not needed as net_freq provides it
             self.net_rare = nn.Sequential(
-                SparseLinear(self.input_splits[1], conf.tail_hidden_size),
+                SparseLinear(self.input_splits[1], conf.tail_hidden_size, device_type= conf.dev),
                 nn.Linear(conf.tail_hidden_size, conf.hidden_sizes[0], bias=False),
             )
         self.apply(self.init_weights)

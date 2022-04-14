@@ -554,9 +554,16 @@ def train_class_regr(net, optimizer, loader, loss_class, loss_regr, dev,
             mixed_precision = True
         else:
             mixed_precision = False
-
+    
+        # with torch.autocast_mode.autocast(device_type = dev.type, enabled=mixed_precision):
         with torch.cuda.amp.autocast(enabled=mixed_precision):
-             fwd = batch_forward(net, b=b, input_size=loader.dataset.input_size, loss_class=loss_class, loss_regr=loss_regr, weights_class=weights_class, weights_regr=weights_regr, censored_weight=censored_weight, dev=dev)
+             fwd = batch_forward(net, b=b, input_size=loader.dataset.input_size, 
+                                loss_class=loss_class, 
+                                loss_regr=loss_regr, 
+                                weights_class=weights_class, 
+                                weights_regr=weights_regr, 
+                                censored_weight=censored_weight, 
+                                dev=dev)
         
         if writer is not None and reporter is not None:
             info = nvmlDeviceGetMemoryInfo(nvml_handle)
@@ -635,7 +642,14 @@ def evaluate_class_regr(net, loader, loss_class, loss_regr, tasks_class, tasks_r
 
     with torch.no_grad():
         for b in tqdm(loader, leave=False, disable=(progress == False)):
-            fwd = batch_forward(net, b=b, input_size=loader.dataset.input_size, loss_class=loss_class, loss_regr=loss_regr, weights_class=tasks_class.training_weight, weights_regr=tasks_regr.training_weight, dev=dev, normalize_inv=normalize_inv, y_cat_columns=loader.dataset.y_cat_columns)
+            fwd = batch_forward(net, b=b, input_size=loader.dataset.input_size, 
+                                loss_class=loss_class, 
+                                loss_regr=loss_regr, 
+                                weights_class=tasks_class.training_weight, 
+                                weights_regr=tasks_regr.training_weight, 
+                                dev=dev, 
+                                normalize_inv=normalize_inv, 
+                                y_cat_columns=loader.dataset.y_cat_columns)
             loss_class_sum += fwd["yc_loss"]
             loss_regr_sum  += fwd["yr_loss"]
             loss_class_weights += fwd["yc_weights"]

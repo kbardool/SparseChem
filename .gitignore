@@ -11,3 +11,6 @@ __pycache__
 metrics_dev.*
 .ipynb_checkpoints/
 experiments/
+pbs_jobs/pbs_train.sh.e*
+pbs_jobs/pbs_train.sh.o*
+wandb/
