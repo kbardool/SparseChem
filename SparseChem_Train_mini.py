@@ -29,15 +29,15 @@ import functools
 import multiprocessing
 import types
 import wandb
-from datetime import datetime
 import pprint
 import csv
 import copy 
-from contextlib import redirect_stdout
 import warnings
 import sparsechem as sc
-from sparsechem import Nothing
-from   notebook_modules import init_wandb
+from  datetime import datetime
+from  contextlib import redirect_stdout
+from  sparsechem import Nothing
+from  sparsechem.notebook_modules import init_wandb,check_for_improvement, initialize
 
 import scipy.io
 import scipy.sparse
@@ -54,7 +54,7 @@ from pynvml import *
 pp = pprint.PrettyPrinter(indent=4)
 np.set_printoptions(edgeitems=3, infstr='inf', linewidth=150, nanstr='nan')
 torch.set_printoptions( linewidth=132)
-os.environ['WANDB_NOTEBOOK_NAME'] = 'SparseChem_Train_mini'
+# os.environ['WANDB_NOTEBOOK_NAME'] = 'SparseChem_Train_mini'
 warnings.filterwarnings("ignore", category=UserWarning)
     
 if torch.cuda.is_available():
@@ -66,133 +66,18 @@ if torch.cuda.is_available():
 
 multiprocessing.set_start_method('fork', force=True)
 
+#------------------------------------------------------------------
+# ### Initialization
+#------------------------------------------------------------------
 
-
-
-parser = argparse.ArgumentParser(description="Training a multi-task model.")
-parser.add_argument("--data_dir", help="Input data directory", type=str, default=None, required = True)
-parser.add_argument("--output_dir", help="Output directory, including boards (default 'models')", type=str, default=None, required=True)
-parser.add_argument("--x", help="Descriptor file (matrix market, .npy or .npz)", type=str, default=None)
-parser.add_argument("--y_class", "--y"   , type=str,   help="Activity file (matrix market, .npy or .npz)", default=None)
-parser.add_argument("--y_regr", "--y_regression", type=str   ,   help="Activity file (matrix market, .npy or .npz)", default=None)
-parser.add_argument("--y_censor"         , type=str,   help="Censor mask for regression (matrix market, .npy or .npz)", default=None)
-
-parser.add_argument("--project_name"        , type=str,   help="Project name used by wandb ", default = "SparseChem-Mini")
-parser.add_argument("--exp_id"           , type=str,   help="experiment unqiue id, used by wandb - defaults to wandb.util.generate_id()")
-parser.add_argument("--exp_name"         , type=str,   help="experiment name, used as folder prefix and wandb name, defaults to mmdd_hhmm")
-
-parser.add_argument("--folder_sfx"       , type=str,   help="experiment folder suffix, defaults to None")
-parser.add_argument("--weights_class", "--task_weights", "--weights_classification", help="CSV file with columns task_id, training_weight, aggregation_weight, task_type (for classification tasks)", type=str, default=None)
-parser.add_argument("--weights_regr", "--weights_regression", help="CSV file with columns task_id, training_weight, censored_weight, aggregation_weight, aggregation_weight, task_type (for regression tasks)", type=str, default=None)
-parser.add_argument("--censored_loss", help="Whether censored loss is used for training (default 1)", type=int, default=1)
-parser.add_argument("--folding", help="Folding file (npy)", type=str, required=True)
-parser.add_argument("--fold_va", help="Validation fold number", type=int, default=0)
-parser.add_argument("--fold_te", help="Test fold number (removed from data, type=strset)", type=int, default=None)
-parser.add_argument("--batch_ratio", help="Batch ratio", type=float, default=0.02)
-parser.add_argument("--internal_batch_max", help="Maximum size of the internal batch", type=int, default=None)
-parser.add_argument("--normalize_loss", help="Normalization constant to divide the loss (default uses batch size)", type=float, default=None)
-parser.add_argument("--normalize_regression", help="Set this to 1 if the regression tasks should be normalized", type=int, default=0)
-
-parser.add_argument("--normalize_regr_va", help="Set this to 1 if the regression tasks in validation fold should be normalized together with training folds", type=int, default=0)
-parser.add_argument("--inverse_normalization", help="Set this to 1 if the regression tasks in validation fold should be inverse normalized at validation time", type=int, default=0)
-parser.add_argument("--hidden_sizes", nargs="+", help="Hidden sizes of trunk", default=[], type=int, required=True)
-parser.add_argument("--last_hidden_sizes", nargs="+", help="Hidden sizes in the head (if specified , class and reg heads have this dimension)", default=None, type=int)
-#parser.add_argument("--middle_dropout", help="Dropout for layers before the last", type=float, default=0.0)
-#parser.add_argument("--last_dropout", help="Last dropout", type=float, default=0.2)
-parser.add_argument("--weight_decay", help="Weight decay", type=float, default=0.0)
-parser.add_argument("--last_non_linearity", help="Last layer non-linearity (depecrated)", type=str, default="relu", choices=["relu", "tanh"])
-parser.add_argument("--middle_non_linearity", "--non_linearity", help="Before last layer non-linearity", type=str, default="relu", choices=["relu", "tanh"])
-parser.add_argument("--input_transform", help="Transformation to apply to inputs", type=str, default="none", choices=["binarize", "none", "tanh", "log1p"])
-parser.add_argument("--lr", help="Learning rate", type=float, default=1e-3)
-parser.add_argument("--lr_alpha", help="Learning rate decay multiplier", type=float, default=0.3)
-parser.add_argument("--lr_steps", nargs="+",help="Learning rate decay steps", type=int, default=[10])
-parser.add_argument("--input_size_freq",   help="Number of high importance features", type=int, default=None)
-parser.add_argument("--fold_inputs",       help="Fold input to a fixed set (default no folding)", type=int, default=None)
-parser.add_argument("--epochs",            help="Number of epochs", type=int, default=20)
-parser.add_argument("--pi_zero",           help="Reference class ratio to be used for calibrated aucpr", type=float, default=0.1)
-parser.add_argument("--min_samples_class", help="Minimum number samples in each class and in each fold for AUC calculation (only used if aggregation_weight is not provided in --weights_class)", type=int, default=5)
-parser.add_argument("--min_samples_auc",   help="Obsolete: use 'min_samples_class'", type=int, default=None)
-parser.add_argument("--min_samples_regr",  help="Minimum number of uncensored samples in each fold for regression metric calculation (only used if aggregation_weight is not provided in --weights_regr)", type=int, default=10)
-parser.add_argument("--dev",               help="Device to use", type=str, default="cuda:0")
-parser.add_argument("--run_name",          help="Run name for results", type=str, default=None)
-parser.add_argument("--prefix",            help="Prefix for run name (default 'run')", type=str, default='run')
-parser.add_argument("--verbose",           help="Verbosity level: 2 = full; 1 = no progress; 0 = no output", type=int, default=2, choices=[0, 1, 2])
-parser.add_argument("--save_model",        help="Set this to 0 if the model should not be saved", type=int, default=1)
-parser.add_argument("--save_board",        help="Set this to 0 if the TensorBoard should not be saved", type=int, default=1)
-parser.add_argument("--profile",           help="Set this to 1 to output memory profile information", type=int, default=0)
-parser.add_argument("--mixed_precision",   help="Set this to 1 to run in mixed precision mode (vs single precision)", type=int, default=0)
-parser.add_argument("--eval_train",        help="Set this to 1 to calculate AUCs for train data", type=int, default=0)
-parser.add_argument("--enable_cat_fusion", help="Set this to 1 to enable catalogue fusion", type=int, default=0)
-parser.add_argument("--eval_frequency",    help="The gap between AUC eval (in epochs), -1 means to do an eval at the end.", type=int, default=1)
-parser.add_argument("--batch_size",        help="Batchsize - default read from config file", type=int, default=None)
-#hybrid model features
-parser.add_argument("--regression_weight", help="between 0 and 1 relative weight of regression loss vs classification loss", type=float, default=0.5)
-parser.add_argument("--scaling_regularizer", help="L2 regularizer of the scaling layer, if inf scaling layer is switched off", type=float, default=np.inf)
-parser.add_argument("--class_feature_size", help="Number of leftmost features used from the output of the trunk (default: use all)", type=int, default=-1)
-parser.add_argument("--regression_feature_size", help="Number of rightmost features used from the output of the trunk (default: use all)", type=int, default=-1)
-parser.add_argument("--last_hidden_sizes_reg", nargs="+", help="Hidden sizes in the regression head (overwritten by last_hidden_sizes)", default=None, type=int)
-parser.add_argument("--last_hidden_sizes_class", nargs="+", help="Hidden sizes in the classification head (overwritten by last_hidden_sizes)", default=None, type=int)
-parser.add_argument("--dropouts_reg"  , nargs="+", help="List of dropout values used in the regression head (needs one per last hidden in reg head, ignored if last_hidden_sizes_reg not specified)", default=[], type=float)
-parser.add_argument("--dropouts_class", nargs="+", help="List of dropout values used in the classification head (needs one per last hidden in class head, ignored if no last_hidden_sizes_class not specified)", default=[], type=float)
-parser.add_argument("--dropouts_trunk", nargs="+", help="List of dropout values used in the trunk", default=[], type=float)
-
-# ### Two layer network as specified in `https://git.infra.melloddy.eu/wp2/sparsechem/-/blob/master/docs/main.md`
-
-args = parser.parse_args()
-rstr = datetime.now().strftime("%m%d_%H%M")
-args.x       = os.path.join(args.data_dir, args.x)
-args.y_class = os.path.join(args.data_dir, args.y_class)
-args.folding = os.path.join(args.data_dir, args.folding)
-args.output_dir = os.path.join(args.output_dir, rstr)
-print(args.output_dir)
-print(args.x)
-print(args.y_class)
-print(args.folding)
-
-def vprint(s=""):
-    if args.verbose:
-        print(s)
-
-if args.exp_id is None:
-    args.exp_id = wandb.util.generate_id()
-
-if args.exp_name is None:
-    args.exp_name = rstr 
-
-if args.folder_sfx is not None:
-    args.exp_name  += f"_{args.folder_sfx}"
-    
-if args.run_name is not None:
-    name = args.run_name
-else:
-    name  = f"{args.prefix}"
-    name += f"_{'.'.join([str(h) for h in args.hidden_sizes])}"
-#     name += f"_do{'.'.join([str(d) for d in args.dropouts_trunk])}"
-    name += f"_lr{args.lr}"
-    name += f"_do{args.dropouts_trunk[0]}"
-#     name += f"_wd{args.weight_decay}"
-#     name += f"_hs{'.'.join([str(h) for h in args.hidden_sizes])}"
-    
-#     name += f"_lrsteps{'.'.join([str(s) for s in args.lr_steps])}_ep{args.epochs}"
-#     name += f"_fva{args.fold_va}_fte{args.fold_te}"
-    if args.mixed_precision == 1:
-        name += f"_mixed_precision"
-vprint(f"Run name is '{name}'.")
-
-# if args.run_name is not None:
-#     name = args.run_name
-# else:
-#     name  = f"sc_{args.prefix}_h{'.'.join([str(h) for h in args.hidden_sizes])}_ldo_r{'.'.join([str(d) for d in args.dropouts_reg])}_wd{args.weight_decay}"
-#     name += f"_lr{args.lr}_lrsteps{'.'.join([str(s) for s in args.lr_steps])}_ep{args.epochs}"
-#     name += f"_fva{args.fold_va}_fte{args.fold_te}"
-#     if args.mixed_precision == 1:
-#         name += f"_mixed_precision"
-# vprint(f"Run name is '{name}'.")
+args = initialize()
  
 pp.pprint(vars(args))
 
 
+#------------------------------------------------------------------
 # ### Assertions
+#------------------------------------------------------------------
  
 if (args.last_hidden_sizes is not None) and ((args.last_hidden_sizes_class is not None) or (args.last_hidden_sizes_reg is not None)):
     raise ValueError("Head specific and general last_hidden_sizes argument were both specified!")
@@ -231,7 +116,7 @@ if (args.y_class is None) and (args.y_regr is None):
 if args.profile == 1:
     assert (args.save_board==1), "Tensorboard should be enabled to be able to profile memory usage."
 if args.save_board:
-    tb_name = os.path.join(args.output_dir, "", name)
+    tb_name = os.path.join(args.output_dir, "", args.name)
     writer  = SummaryWriter(tb_name)
 else:
     writer = Nothing()
@@ -262,7 +147,9 @@ assert ecfp.shape[0] == folding.shape[0], "x and folding must have same number o
 tasks_class = sc.load_task_weights(args.weights_class, y=y_class, label="y_class")
 tasks_regr  = sc.load_task_weights(args.weights_regr, y=y_regr, label="y_regr")
 
+#------------------------------------------------------------------
 ## Input transformation
+#------------------------------------------------------------------
 ecfp = sc.fold_transform_inputs(ecfp, folding_size=args.fold_inputs, transform=args.input_transform)
 print(f"count non zero:{ecfp[0].count_nonzero()}")
 num_pos    = np.array((y_class == +1).sum(0)).flatten()
@@ -293,12 +180,12 @@ if tasks_regr.aggregation_weight is None:
     del y_regr2
     tasks_regr.aggregation_weight = (fold_regr >= args.min_samples_regr).all(0).astype(np.float64)
 
-vprint(f"Input dimension: {ecfp.shape[1]}")
-vprint(f"#samples:        {ecfp.shape[0]}")
-vprint(f"#classification tasks:  {y_class.shape[1]}")
-vprint(f"#regression tasks:      {y_regr.shape[1]}")
-vprint(f"Using {(tasks_class.aggregation_weight > 0).sum()} classification tasks for calculating aggregated metrics (AUCROC, F1_max, etc).")
-vprint(f"Using {(tasks_regr.aggregation_weight > 0).sum()} regression tasks for calculating metrics (RMSE, Rsquared, correlation).")
+print(f"Input dimension: {ecfp.shape[1]}")
+print(f"#samples:        {ecfp.shape[0]}")
+print(f"#classification tasks:  {y_class.shape[1]}")
+print(f"#regression tasks:      {y_regr.shape[1]}")
+print(f"Using {(tasks_class.aggregation_weight > 0).sum()} classification tasks for calculating aggregated metrics (AUCROC, F1_max, etc).")
+print(f"Using {(tasks_regr.aggregation_weight > 0).sum()} regression tasks for calculating metrics (RMSE, Rsquared, correlation).")
 
 
 
@@ -340,16 +227,15 @@ pos_rate_ref = args.pi_zero
 pos_rate = np.clip(pos_rate, 0, 0.99)
 cal_fact_aucpr = pos_rate*(1-pos_rate_ref)/(pos_rate_ref*(1-pos_rate))
 
-vprint(f"Input dimension   : {ecfp.shape[1]}")
-vprint(f"Input dimension   : {ecfp.shape[1]}")
-vprint(f"Training dataset  : {ecfp[idx_tr].shape}")
-vprint(f"Validation dataset: {ecfp[idx_va].shape}")
-vprint()
-vprint(f"#classification tasks:  {y_class.shape[1]}")
-vprint(f"#regression tasks    :      {y_regr.shape[1]}")
-vprint(f"Using {(tasks_class.aggregation_weight > 0).sum():3d} classification tasks for calculating aggregated metrics (AUCROC, F1_max, etc).")
-vprint(f"Using {(tasks_regr.aggregation_weight > 0).sum():3d} regression tasks for calculating metrics (RMSE, Rsquared, correlation).")
-
+print(f"Input dimension   : {ecfp.shape[1]}")
+print(f"Input dimension   : {ecfp.shape[1]}")
+print(f"Training dataset  : {ecfp[idx_tr].shape}")
+print(f"Validation dataset: {ecfp[idx_va].shape}")
+print()
+print(f"#classification tasks:  {y_class.shape[1]}")
+print(f"#regression tasks    :      {y_regr.shape[1]}")
+print(f"Using {(tasks_class.aggregation_weight > 0).sum():3d} classification tasks for calculating aggregated metrics (AUCROC, F1_max, etc).")
+print(f"Using {(tasks_regr.aggregation_weight > 0).sum():3d} regression tasks for calculating metrics (RMSE, Rsquared, correlation).")
 
 num_int_batches = 1
 if args.batch_size is not None:
@@ -366,23 +252,6 @@ if args.internal_batch_max is not None:
         batch_size      = int(np.ceil(batch_size / num_int_batches))
 print(f"batch size:   {batch_size}")
 print(f"num_int_batches:   {num_int_batches}")
-
-
-# In[13]:
-
-
-# #import ipdb; ipdb.set_trace()
-# batch_size  = int(np.ceil(args.batch_ratio * idx_tr.shape[0]))
-# num_int_batches = 1
-
-# if args.internal_batch_max is not None:
-#     if args.internal_batch_max < batch_size:
-#         num_int_batches = int(np.ceil(batch_size / args.internal_batch_max))
-#         batch_size      = int(np.ceil(batch_size / num_int_batches))
-# vprint(f"#internal batch size:   {batch_size}")
-
-
-# In[14]:
 
 
 tasks_cat_id_list = None
@@ -598,24 +467,24 @@ pp.pprint(results_va['classification_agg'].to_dict())
 # ## Post Training 
 #------------------------------------------------------------------
 writer.close()
-vprint()
+print()
 if args.profile == 1:
    multiplexer = sc.create_multiplexer(tb_name)
 #   sc.export_scalars(multiplexer, '.', "GPUmem", "testcsv.csv")
    data = sc.extract_scalars(multiplexer, '.', "GPUmem")
-   vprint(f"Peak GPU memory used: {sc.return_max_val(data)}MB")
-vprint("Saving performance metrics (AUCs) and model.")
+   print(f"Peak GPU memory used: {sc.return_max_val(data)}MB")
+print("Saving performance metrics (AUCs) and model.")
 
 #####   model saving   #####
 if not os.path.exists(args.output_dir):
    os.makedirs(args.output_dir)
 
-model_file = f"{args.output_dir}/{name}.pt"
-out_file   = f"{args.output_dir}/{name}.json"
+model_file = f"{args.output_dir}/{args.name}.pt"
+out_file   = f"{args.output_dir}/{args.name}.json"
 
 if args.save_model:
    torch.save(net.state_dict(), model_file)
-   vprint(f"Saved model weights into '{model_file}'.")
+   print(f"Saved model weights into '{model_file}'.")
 
 results_va["classification"]["num_pos"] = num_pos_va
 results_va["classification"]["num_neg"] = num_neg_va
@@ -633,12 +502,10 @@ if args.normalize_regression == 1 :
    stats["var"]  = np.array(var_save)[0]
 sc.save_results(out_file, args, validation=results_va, training=results_tr, stats=stats)
 
-vprint(f"Saved config and results into '{out_file}'.\nYou can load the results by:\n  import sparsechem as sc\n  res = sc.load_results('{out_file}')")
-
-
-ns.wandb_run.finish()
-
+print(f"Saved config and results into '{out_file}'.\nYou can load the results by:\n  import sparsechem as sc\n  res = sc.load_results('{out_file}')")
+print()
 print(results_va['classification'][0:20])
 pp.pprint(results_va)
 
+ns.wandb_run.finish()
  

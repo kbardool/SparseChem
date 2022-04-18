@@ -63,10 +63,11 @@ def init_wandb(ns, args, resume = "allow" ):
     # opt['exp_id'] = wandb.util.generate_id()
     print(args.exp_id, args.exp_name, args.project_name) # , opt['exp_instance'])
     ns.wandb_run = wandb.init(project = args.project_name, 
-                                     entity  = "kbardool", 
-                                     id      = args.exp_id, 
-                                     name    = args.exp_name,
-                                     resume  = resume )
+                              entity  = "kbardool", 
+                              id      = args.exp_id, 
+                              name    = args.exp_name,
+                              notes   = args.exp_desc,                                     
+                              resume  = resume )
     wandb.config.update(args)
 
     print(f" PROJECT NAME: {ns.wandb_run.project}\n"
@@ -108,8 +109,10 @@ def get_command_line_args(input = None, display = True):
     parser.add_argument("--y_censor"         , type=str,   help="Censor mask for regression (matrix market, .npy or .npz)", default=None)
 
     parser.add_argument("--project_name"        , type=str,   help="Project name used by wandb ", default = "SparseChem-Mini")
+
     parser.add_argument("--exp_id"           , type=str,   help="experiment unqiue id, used by wandb - defaults to wandb.util.generate_id()")
     parser.add_argument("--exp_name"         , type=str,   help="experiment name, used as folder prefix and wandb name, defaults to mmdd_hhmm")
+    parser.add_argument("--exp_desc"         , type=str,   nargs='+', default=[] , help="experiment description")
 
     parser.add_argument("--folder_sfx"       , type=str,   help="experiment folder suffix, defaults to None")
     parser.add_argument("--weights_class", "--task_weights", "--weights_classification", help="CSV file with columns task_id, training_weight, aggregation_weight, task_type (for classification tasks)", type=str, default=None)
@@ -170,7 +173,9 @@ def get_command_line_args(input = None, display = True):
         args = parser.parse_args()
     else:
         args = parser.parse_args(input)
-
+    
+    args.exp_desc = ' '.join(str(e) for e in args.exp_desc)
+    
     if display:
         print_underline(' command line parms : ', True)
         for key, val in vars(args).items():
