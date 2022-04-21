@@ -14,3 +14,5 @@ experiments/
 wandb/
 pbs_output/
 pbs_jobs/wandb/
+pbs_jobs/del_wandb.sh
+pbs_jobs/del_pbs.sh

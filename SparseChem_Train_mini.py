@@ -116,8 +116,8 @@ if (args.y_class is None) and (args.y_regr is None):
 if args.profile == 1:
     assert (args.save_board==1), "Tensorboard should be enabled to be able to profile memory usage."
 if args.save_board:
-    tb_name = os.path.join(args.output_dir, "", args.name)
-    writer  = SummaryWriter(tb_name)
+    # tb_name = os.path.join(args.output_dir, "", args.name)
+    writer  = SummaryWriter(args.output_dir)
 else:
     writer = Nothing()
 

@@ -105,33 +105,21 @@ def get_command_line_args(input = None, display = True):
     parser.add_argument("--output_dir", help="Output directory, including boards (default 'models')", type=str, default=None, required=True)
     parser.add_argument("--x", help="Descriptor file (matrix market, .npy or .npz)", type=str, default=None)
     parser.add_argument("--y_class", "--y"   , type=str,   help="Activity file (matrix market, .npy or .npz)", default=None)
-    parser.add_argument("--y_regr", "--y_regression", type=str   ,   help="Activity file (matrix market, .npy or .npz)", default=None)
-    parser.add_argument("--y_censor"         , type=str,   help="Censor mask for regression (matrix market, .npy or .npz)", default=None)
-
     parser.add_argument("--project_name"        , type=str,   help="Project name used by wandb ", default = "SparseChem-Mini")
 
     parser.add_argument("--exp_id"           , type=str,   help="experiment unqiue id, used by wandb - defaults to wandb.util.generate_id()")
     parser.add_argument("--exp_name"         , type=str,   help="experiment name, used as folder prefix and wandb name, defaults to mmdd_hhmm")
     parser.add_argument("--exp_desc"         , type=str,   nargs='+', default=[] , help="experiment description")
-
     parser.add_argument("--folder_sfx"       , type=str,   help="experiment folder suffix, defaults to None")
-    parser.add_argument("--weights_class", "--task_weights", "--weights_classification", help="CSV file with columns task_id, training_weight, aggregation_weight, task_type (for classification tasks)", type=str, default=None)
-    parser.add_argument("--weights_regr", "--weights_regression", help="CSV file with columns task_id, training_weight, censored_weight, aggregation_weight, aggregation_weight, task_type (for regression tasks)", type=str, default=None)
-    parser.add_argument("--censored_loss", help="Whether censored loss is used for training (default 1)", type=int, default=1)
-    parser.add_argument("--folding", help="Folding file (npy)", type=str, required=True)
-    parser.add_argument("--fold_va", help="Validation fold number", type=int, default=0)
-    parser.add_argument("--fold_te", help="Test fold number (removed from data, type=strset)", type=int, default=None)
-    parser.add_argument("--batch_ratio", help="Batch ratio", type=float, default=0.02)
-    parser.add_argument("--internal_batch_max", help="Maximum size of the internal batch", type=int, default=None)
-    parser.add_argument("--normalize_loss", help="Normalization constant to divide the loss (default uses batch size)", type=float, default=None)
-    parser.add_argument("--normalize_regression", help="Set this to 1 if the regression tasks should be normalized", type=int, default=0)
 
-    parser.add_argument("--normalize_regr_va", help="Set this to 1 if the regression tasks in validation fold should be normalized together with training folds", type=int, default=0)
-    parser.add_argument("--inverse_normalization", help="Set this to 1 if the regression tasks in validation fold should be inverse normalized at validation time", type=int, default=0)
     parser.add_argument("--hidden_sizes", nargs="+", help="Hidden sizes of trunk", default=[], type=int, required=True)
+    parser.add_argument("--dropouts_trunk", nargs="+", help="List of dropout values used in the trunk", default=[], type=float)    
+    parser.add_argument("--class_feature_size", help="Number of leftmost features used from the output of the trunk (default: use all)", type=int, default=-1)
     parser.add_argument("--last_hidden_sizes", nargs="+", help="Hidden sizes in the head (if specified , class and reg heads have this dimension)", default=None, type=int)
-    #parser.add_argument("--middle_dropout", help="Dropout for layers before the last", type=float, default=0.0)
-    #parser.add_argument("--last_dropout", help="Last dropout", type=float, default=0.2)
+
+    parser.add_argument("--epochs", help="Number of epochs", type=int, default=20)
+    parser.add_argument("--batch_size",        help="Batchsize - default read from config file", type=int, default=None)
+
     parser.add_argument("--weight_decay", help="Weight decay", type=float, default=0.0)
     parser.add_argument("--last_non_linearity", help="Last layer non-linearity (depecrated)", type=str, default="relu", choices=["relu", "tanh"])
     parser.add_argument("--middle_non_linearity", "--non_linearity", help="Before last layer non-linearity", type=str, default="relu", choices=["relu", "tanh"])
@@ -139,17 +127,36 @@ def get_command_line_args(input = None, display = True):
     parser.add_argument("--lr", help="Learning rate", type=float, default=1e-3)
     parser.add_argument("--lr_alpha", help="Learning rate decay multiplier", type=float, default=0.3)
     parser.add_argument("--lr_steps", nargs="+", help="Learning rate decay steps", type=int, default=[10])
-    parser.add_argument("--input_size_freq", help="Number of high importance features", type=int, default=None)
-    parser.add_argument("--fold_inputs", help="Fold input to a fixed set (default no folding)", type=int, default=None)
-    parser.add_argument("--epochs", help="Number of epochs", type=int, default=20)
-    parser.add_argument("--pi_zero", help="Reference class ratio to be used for calibrated aucpr", type=float, default=0.1)
+
+    parser.add_argument("--weights_class", "--task_weights", "--weights_classification", help="CSV file with columns task_id, training_weight, aggregation_weight, task_type (for classification tasks)", type=str, default=None)
+    parser.add_argument("--weights_regr", "--weights_regression", help="CSV file with columns task_id, training_weight, censored_weight, aggregation_weight, aggregation_weight, task_type (for regression tasks)", type=str, default=None)
+    parser.add_argument("--fold_va", help="Validation fold number", type=int, default=0)
+    parser.add_argument("--fold_te", help="Test fold number (removed from data, type=strset)", type=int, default=None)
+    parser.add_argument("--batch_ratio", help="Batch ratio", type=float, default=0.02)
+    parser.add_argument("--internal_batch_max", help="Maximum size of the internal batch", type=int, default=None)
+
+    parser.add_argument("--censored_loss", help="Whether censored loss is used for training (default 1)", type=int, default=1)
+    parser.add_argument("--folding", help="Folding file (npy)", type=str, required=True)
+    parser.add_argument("--y_regr", "--y_regression", type=str   ,   help="Activity file (matrix market, .npy or .npz)", default=None)
+    parser.add_argument("--y_censor"         , type=str,   help="Censor mask for regression (matrix market, .npy or .npz)", default=None)
+
+    parser.add_argument("--normalize_loss", help="Normalization constant to divide the loss (default uses batch size)", type=float, default=None)
+    parser.add_argument("--normalize_regression", help="Set this to 1 if the regression tasks should be normalized", type=int, default=0)
+    parser.add_argument("--normalize_regr_va", help="Set this to 1 if the regression tasks in validation fold should be normalized together with training folds", type=int, default=0)
+    parser.add_argument("--inverse_normalization", help="Set this to 1 if the regression tasks in validation fold should be inverse normalized at validation time", type=int, default=0)
+
+    #parser.add_argument("--middle_dropout", help="Dropout for layers before the last", type=float, default=0.0)
+    #parser.add_argument("--last_dropout", help="Last dropout", type=float, default=0.2)
+    parser.add_argument("--input_size_freq",   help="Number of high importance features", type=int, default=None)
+    parser.add_argument("--fold_inputs",       help="Fold input to a fixed set (default no folding)", type=int, default=None)
+    parser.add_argument("--pi_zero",           help="Reference class ratio to be used for calibrated aucpr", type=float, default=0.1)
     parser.add_argument("--min_samples_class", help="Minimum number samples in each class and in each fold for AUC calculation (only used if aggregation_weight is not provided in --weights_class)", type=int, default=5)
-    parser.add_argument("--min_samples_auc", help="Obsolete: use 'min_samples_class'", type=int, default=None)
-    parser.add_argument("--min_samples_regr", help="Minimum number of uncensored samples in each fold for regression metric calculation (only used if aggregation_weight is not provided in --weights_regr)", type=int, default=10)
-    parser.add_argument("--dev", help="Device to use", type=str, default="cuda:0")
-    parser.add_argument("--run_name", help="Run name for results", type=str, default=None)
-    parser.add_argument("--prefix", help="Prefix for run name (default 'run')", type=str, default='run')
-    parser.add_argument("--verbose", help="Verbosity level: 2 = full; 1 = no progress; 0 = no output", type=int, default=2, choices=[0, 1, 2])
+    parser.add_argument("--min_samples_auc",   help="Obsolete: use 'min_samples_class'", type=int, default=None)
+    parser.add_argument("--min_samples_regr",  help="Minimum number of uncensored samples in each fold for regression metric calculation (only used if aggregation_weight is not provided in --weights_regr)", type=int, default=10)
+    parser.add_argument("--dev",               help="Device to use", type=str, default="cuda:0")
+    parser.add_argument("--run_name",          help="Run name for results", type=str, default=None)
+    parser.add_argument("--prefix",            help="Prefix for run name (default 'run')", type=str, default='run')
+    parser.add_argument("--verbose",           help="Verbosity level: 2 = full; 1 = no progress; 0 = no output", type=int, default=2, choices=[0, 1, 2])
     parser.add_argument("--save_model",        help="Set this to 0 if the model should not be saved", type=int, default=1)
     parser.add_argument("--save_board",        help="Set this to 0 if the TensorBoard should not be saved", type=int, default=1)
     parser.add_argument("--profile",           help="Set this to 1 to output memory profile information", type=int, default=0)
@@ -157,17 +164,14 @@ def get_command_line_args(input = None, display = True):
     parser.add_argument("--eval_train",        help="Set this to 1 to calculate AUCs for train data", type=int, default=0)
     parser.add_argument("--enable_cat_fusion", help="Set this to 1 to enable catalogue fusion", type=int, default=0)
     parser.add_argument("--eval_frequency",    help="The gap between AUC eval (in epochs), -1 means to do an eval at the end.", type=int, default=1)
-    parser.add_argument("--batch_size",        help="Batchsize - default read from config file", type=int, default=None)
-    #hybrid model features
     parser.add_argument("--regression_weight", help="between 0 and 1 relative weight of regression loss vs classification loss", type=float, default=0.5)
     parser.add_argument("--scaling_regularizer", help="L2 regularizer of the scaling layer, if inf scaling layer is switched off", type=float, default=np.inf)
-    parser.add_argument("--class_feature_size", help="Number of leftmost features used from the output of the trunk (default: use all)", type=int, default=-1)
+    #hybrid model features
     parser.add_argument("--regression_feature_size", help="Number of rightmost features used from the output of the trunk (default: use all)", type=int, default=-1)
     parser.add_argument("--last_hidden_sizes_reg", nargs="+", help="Hidden sizes in the regression head (overwritten by last_hidden_sizes)", default=None, type=int)
     parser.add_argument("--last_hidden_sizes_class", nargs="+", help="Hidden sizes in the classification head (overwritten by last_hidden_sizes)", default=None, type=int)
     parser.add_argument("--dropouts_reg"  , nargs="+", help="List of dropout values used in the regression head (needs one per last hidden in reg head, ignored if last_hidden_sizes_reg not specified)", default=[], type=float)
     parser.add_argument("--dropouts_class", nargs="+", help="List of dropout values used in the classification head (needs one per last hidden in class head, ignored if no last_hidden_sizes_class not specified)", default=[], type=float)
-    parser.add_argument("--dropouts_trunk", nargs="+", help="List of dropout values used in the trunk", default=[], type=float)    
 
     if input is None:
         args = parser.parse_args()
@@ -193,11 +197,15 @@ def initialize(input_args = None):
     args.x       = os.path.join(args.data_dir, args.x)
     args.y_class = os.path.join(args.data_dir, args.y_class)
     args.folding = os.path.join(args.data_dir, args.folding)
-    args.output_dir = os.path.join(args.output_dir, rstr)
+    args.num_hdn_layers = len(args.hidden_sizes) -1
+    args.hdn_layer_size = args.hidden_sizes[0]
+    dir_name      = f"{args.hdn_layer_size}x{args.num_hdn_layers}_{rstr}_lr{args.lr}_do{args.dropouts_trunk[0]}"
+    args.output_dir = os.path.join(args.output_dir, dir_name)
     print(args.output_dir)
     print(args.x)
     print(args.y_class)
     print(args.folding)
+    print(args.num_hdn_layers, args.hdn_layer_size)
 
 
     # dev = "gpu" 
