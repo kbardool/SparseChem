@@ -1,22 +1,10 @@
 #!/usr/bin/env python
 # coding: utf-8
+# Copyright (c) 2020 KU Leuven
 
 # ## Train SparseChem on Chembl_mini 
 # Output to `experiments/SparseChem`
 
-# In[1]:
-
-
-# from IPython.core.display import display, HTML
-# display(HTML("<style>.container { width:90% !important; }</style>"))
-# get_ipython().run_line_magic('load_ext', 'autoreload')
-# get_ipython().run_line_magic('autoreload', '2')
-
-
-# In[26]:
-
-
-# Copyright (c) 2020 KU Leuven
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 
@@ -26,7 +14,6 @@ import os.path
 import time
 import json
 import functools
-import multiprocessing
 import types
 import wandb
 import pprint
@@ -47,6 +34,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.tensorboard import SummaryWriter
+# from torch.serialization import SourceChangeWarning 
 from pytorch_memlab import MemReporter
 
 from pynvml import *
@@ -54,24 +42,22 @@ from pynvml import *
 pp = pprint.PrettyPrinter(indent=4)
 np.set_printoptions(edgeitems=3, infstr='inf', linewidth=150, nanstr='nan')
 torch.set_printoptions( linewidth=132)
+
 # os.environ['WANDB_NOTEBOOK_NAME'] = 'SparseChem_Train_mini'
+#warnings.filterwarnings("ignore", category=UserWarning)    
 warnings.filterwarnings("ignore", category=UserWarning)
     
 if torch.cuda.is_available():
     nvmlInit()
 
-#import warnings
-# from torch.serialization import SourceChangeWarning 
-#warnings.filterwarnings("ignore", category=UserWarning)    
-
-multiprocessing.set_start_method('fork', force=True)
+# import multiprocessing
+# multiprocessing.set_start_method('fork', force=True)
 
 #------------------------------------------------------------------
 # ### Initialization
 #------------------------------------------------------------------
 
-args = initialize()
- 
+args = initialize() 
 pp.pprint(vars(args))
 
 
@@ -111,8 +97,6 @@ if (args.y_class is None) and (args.y_regr is None):
 #------------------------------------------------------------------
 # ### Summary writer
 #------------------------------------------------------------------
-
-
 if args.profile == 1:
     assert (args.save_board==1), "Tensorboard should be enabled to be able to profile memory usage."
 if args.save_board:
@@ -125,7 +109,6 @@ else:
 #------------------------------------------------------------------
 # ### Load datasets
 #------------------------------------------------------------------
-
 ecfp     = sc.load_sparse(args.x)
 y_class  = sc.load_sparse(args.y_class)
 y_regr   = sc.load_sparse(args.y_regr)
@@ -268,7 +251,6 @@ else:
 #------------------------------------------------------------------
 # ### Dataloaders
 #------------------------------------------------------------------
-
 dataset_tr = sc.ClassRegrSparseDataset(x=ecfp[idx_tr], y_class=y_class_tr, y_regr=y_regr_tr, y_censor=y_censor_tr, y_cat_columns=select_cat_ids)
 dataset_va = sc.ClassRegrSparseDataset(x=ecfp[idx_va], y_class=y_class_va, y_regr=y_regr_va, y_censor=y_censor_va, y_cat_columns=select_cat_ids)
 
@@ -359,10 +341,7 @@ if args.profile == 1:
 #------------------------------------------------------------------
 print("Network:")
 print(net)
-
 print(optimizer)
-# args.eval_train = 0 
-# args.epochs     = 5
 print(f"dev                  :    {dev}")
 print(f"args.lr              :    {args.lr}")
 print(f"args.weight_decay    :    {args.weight_decay}")

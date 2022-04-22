@@ -22,13 +22,13 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.tensorboard import SummaryWriter
 from pytorch_memlab import MemReporter
-import multiprocessing
 from pynvml import *
 
 if torch.cuda.is_available():
     nvmlInit()
 
-multiprocessing.set_start_method('fork', force=True)
+# import multiprocessing
+# multiprocessing.set_start_method('fork', force=True)
 
 
 parser = argparse.ArgumentParser(description="Training a multi-task model.")
