@@ -19,11 +19,11 @@ epochs=100
 lr=0.001
 
 num_layers=4
-layer=800
-dropout=0.05
+layer=50
+dropout=0.65
 
 job_name="SC-${layer}x${num_layers}-${dropout}"
-output_file="../pbs_outputs/${job_name}.out"
+output_file="../pbs_output/${job_name}.out"
 
 echo " Epochs: $epochs    Lyrs: $num_layers  Lyr sz: $layer   Dropout: $dropout  Task LR: $lr  device: $dev  output: $output_file "   
 . $RUN_SCRIPT > $output_file 2>&1 &
