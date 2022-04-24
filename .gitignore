@@ -17,3 +17,7 @@ pbs_output/
 pbs_jobs/wandb/
 pbs_jobs/del_wandb.sh
 pbs_jobs/del_pbs.sh
+docs/kevins_util_modified.py
+docs/kevins_util_orig.py
+docs/util_modified.py
+docs/util_orig.py
