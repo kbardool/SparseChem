@@ -11,7 +11,7 @@ conda activate pyt-gpu
 python -V
 
 echo program excution start: $(date)
-
+program="../SparseChem_Train_mini.py"
 layers=""
 dropouts=""
 echo "Number Layers: $num_layers   Layer size: $layer   Dropout: $dropout  Task LR: $lr "

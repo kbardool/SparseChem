@@ -1,4 +1,23 @@
 #!/bin/bash
+
+dev="cuda:0"
+epochs=100
+lr_list=(0.001 )
+
+# num_layers_list=(3)
+# layer_size_list=( 800 )
+# dropout_list=(0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95)
+# layer_size_list=(100 200 300 400 500 600 700 800 )
+# dropout_list=(0.9 )
+# dropout_list=( 0.0 0.05 0.10 0.15 0.20 ) 
+# dropout_list=( 0.25 0.30 0.35 0.40 0.45 ) 
+# dropout_list=( 0.50 0.55 0.60 0.65 0.70 )
+# dropout_list=( 0.75 0.80 0.85 0.90 0.95 )
+# dropout_list=(0.0 0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95)
+# dropout_list=(0.0 0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 )
+# dropout_list=(0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 )
+
+submit_list "SC_train_local.sh"
 config="../yamls/chembl_mini_train.yaml"
 datadir="../../MLDatasets/chembl23_mini"
 outdir="../../experiments/mini-SparseChem"
@@ -16,10 +35,6 @@ program="../SparseChem_Train_mini.py"
 # echo  $pbs_folders
 # echo  $pbs_allocate
 
-dev="cuda:0"
-epochs=100
-lr_list=(0.001 )
-
 submit_list(){ 
     for num_layers in ${num_layers_list[@]}; do                 
         for layer in ${layer_size_list[@]}; do                   
@@ -34,28 +49,4 @@ submit_list(){
         done
     done
 }
-
-
-# layer_size_list=(100 200 300 400 500 600 700 800 )
-# dropout_list=(0.9 )
-# dropout_list=(0.0 0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95)
-# dropout_list=(0.0 0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 )
-# dropout_list=(0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 )
-num_layers_list=(3)
-layer_size_list=( 800 )
-dropout_list=( 0.0 0.05 0.10 0.15 0.20 ) 
-
-submit_list "SC_train_local.sh"
- 
-
-# dropout_list=( 0.25 0.30 0.35 0.40 0.45 ) 
-# submit_list "SC_train_local.sh"
-# wait
-
-# dropout_list=( 0.50 0.55 0.60 0.65 0.70 )
-# submit_list "SC_train_local.sh"
-# wait 
-
-# dropout_list=( 0.75 0.80 0.85 0.90 0.95 )
-# submit_list "SC_train_local.sh"
  
