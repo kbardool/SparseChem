@@ -485,6 +485,11 @@ print(f"Saved config and results into '{out_file}'.\nYou can load the results by
 print()
 print(results_va['classification'][0:20])
 pp.pprint(results_va)
+print()
+pp.pprint(results_va['classification_agg'])
+print()
+df = results_va['classification']
+print(df[pd.notna(df.roc_auc_score)])
 
 ns.wandb_run.finish()
  
