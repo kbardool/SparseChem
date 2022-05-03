@@ -134,6 +134,7 @@ tasks_regr  = sc.load_task_weights(args.weights_regr, y=y_regr, label="y_regr")
 ## Input transformation
 #------------------------------------------------------------------
 ecfp = sc.fold_transform_inputs(ecfp, folding_size=args.fold_inputs, transform=args.input_transform)
+
 print(f"count non zero:{ecfp[0].count_nonzero()}")
 num_pos    = np.array((y_class == +1).sum(0)).flatten()
 num_neg    = np.array((y_class == -1).sum(0)).flatten()
@@ -163,10 +164,10 @@ if tasks_regr.aggregation_weight is None:
     del y_regr2
     tasks_regr.aggregation_weight = (fold_regr >= args.min_samples_regr).all(0).astype(np.float64)
 
-print(f"Input dimension: {ecfp.shape[1]}")
-print(f"#samples:        {ecfp.shape[0]}")
+print(f"Input dimension      :  {ecfp.shape[1]}")
+print(f"#samples             :  {ecfp.shape[0]}")
 print(f"#classification tasks:  {y_class.shape[1]}")
-print(f"#regression tasks:      {y_regr.shape[1]}")
+print(f"#regression tasks    :  {y_regr.shape[1]}")
 print(f"Using {(tasks_class.aggregation_weight > 0).sum()} classification tasks for calculating aggregated metrics (AUCROC, F1_max, etc).")
 print(f"Using {(tasks_regr.aggregation_weight > 0).sum()} regression tasks for calculating metrics (RMSE, Rsquared, correlation).")
 
@@ -179,21 +180,24 @@ if args.fold_te is not None and args.fold_te >= 0:
     ecfp    = ecfp[keep]
     y_class = y_class[keep]
     y_regr  = y_regr[keep]
-    y_censor = y_censor[keep]
+    y_censor= y_censor[keep]
     folding = folding[keep]
 
 normalize_inv = None
 if args.normalize_regression == 1 and args.normalize_regr_va == 1:
    y_regr, mean_save, var_save = sc.normalize_regr(y_regr)
+
+
 fold_va = args.fold_va
 idx_tr  = np.where(folding != fold_va)[0]
 idx_va  = np.where(folding == fold_va)[0]
 
 y_class_tr = y_class[idx_tr]
-y_class_va = y_class[idx_va]
 y_regr_tr  = y_regr[idx_tr]
-y_regr_va  = y_regr[idx_va]
 y_censor_tr = y_censor[idx_tr]
+
+y_class_va = y_class[idx_va]
+y_regr_va  = y_regr[idx_va]
 y_censor_va = y_censor[idx_va]
 
 if args.normalize_regression == 1 and args.normalize_regr_va == 0:
@@ -202,6 +206,7 @@ if args.normalize_regression == 1 and args.normalize_regr_va == 0:
       normalize_inv = {}
       normalize_inv["mean"] = mean_save
       normalize_inv["var"]  = var_save
+
 num_pos_va  = np.array((y_class_va == +1).sum(0)).flatten()
 num_neg_va  = np.array((y_class_va == -1).sum(0)).flatten()
 num_regr_va = np.bincount(y_regr_va.indices, minlength=y_regr.shape[1])
@@ -220,6 +225,10 @@ print(f"#regression tasks    :      {y_regr.shape[1]}")
 print(f"Using {(tasks_class.aggregation_weight > 0).sum():3d} classification tasks for calculating aggregated metrics (AUCROC, F1_max, etc).")
 print(f"Using {(tasks_regr.aggregation_weight > 0).sum():3d} regression tasks for calculating metrics (RMSE, Rsquared, correlation).")
 
+
+##----------------------------------------------------------
+## Batch Size 
+##----------------------------------------------------------
 num_int_batches = 1
 if args.batch_size is not None:
     batch_size = args.batch_size
