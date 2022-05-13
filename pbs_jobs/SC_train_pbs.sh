@@ -29,9 +29,9 @@ python                               ${program} \
    --output_dir                       ${outdir} \
    --project_name               ${project_name} \
    --exp_desc       ${JOBID} - SparseChem Train \
-   --x                      chembl_23mini_x.npy \
-   --y_class                chembl_23mini_y.npy \
-   --folding            chembl_23mini_folds.npy \
+   --x                                ${x_file} \
+   --y_class                          ${y_file} \
+   --folding                       ${fold_file} \
    --dev                                 ${dev} \
    --fold_va                                  0 \
    --fold_inputs                          32000 \

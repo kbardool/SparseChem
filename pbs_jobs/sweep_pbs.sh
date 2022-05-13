@@ -18,6 +18,9 @@ datadir="../../MLDatasets/chembl23_mini"
 outdir="../../experiments/SparseChem-mini"
 program="../SparseChem_Train.py"
 project_name="SparseChem-Mini"
+x_file="chembl_23mini_x.npy"
+y_file="chembl_23mini_y.npy"
+fold_file="chembl_23mini_folds.npy"
 # echo  " DATADIR: $datadir    OUTDIR: $outdir    "
 
 # PBS -M kevin.bardool@kuleuven.be
