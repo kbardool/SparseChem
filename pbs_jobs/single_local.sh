@@ -7,21 +7,21 @@
 # echo  " $pbs_folders"
 # echo  " $pbs_allocate"
 
+
 RUN_SCRIPT=SC_train_local.sh
 config="../yamls/chembl_mini_train.yaml"
 datadir="../../MLDatasets/chembl23_mini"
 outdir="../../experiments/mini-SparseChem"
-program="../SparseChem_Train_mini.py"
+project_name="SparseChem-Mini"
 # echo  " DATADIR: $datadir    OUTDIR: $outdir    CONFIG FILE: $config"
 
 dev="cuda:0"
 epochs=100
 lr=0.001
 
-num_layers=4
 layer=50
+num_layers=4
 dropout=0.65
-
 job_name="SC-${layer}x${num_layers}-${dropout}"
 output_file="../pbs_output/${job_name}.out"
 

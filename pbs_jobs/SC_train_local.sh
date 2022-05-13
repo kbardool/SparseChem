@@ -14,6 +14,7 @@ echo program excution start: $(date)
 
 layers=""
 dropouts=""
+program="../SparseChem_Train.py"
 echo "Number Layers: $num_layers  of Layer size: $layer   Dropout: $dropout  Task LR: $lr "
 
 ## SparseChem needs a list of Layers + 1 , eg. 100 x 2 hidden layers : [100 100 100] 

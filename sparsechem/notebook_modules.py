@@ -76,8 +76,6 @@ def init_wandb(ns, args, resume = "allow" ):
     return 
 
 
-# In[47]:
-
 
 def check_for_improvement(ns, metrics):
     #------------------------------------------------------------------------ 
@@ -105,7 +103,7 @@ def get_command_line_args(input = None, display = True):
     parser.add_argument("--output_dir", help="Output directory, including boards (default 'models')", type=str, default=None, required=True)
     parser.add_argument("--x", help="Descriptor file (matrix market, .npy or .npz)", type=str, default=None)
     parser.add_argument("--y_class", "--y"   , type=str,   help="Activity file (matrix market, .npy or .npz)", default=None)
-    parser.add_argument("--project_name"        , type=str,   help="Project name used by wandb ", default = "SparseChem-Mini")
+    parser.add_argument("--project_name"     , type=str,   help="Project name used by wandb ", required=True)
 
     parser.add_argument("--exp_id"           , type=str,   help="experiment unqiue id, used by wandb - defaults to wandb.util.generate_id()")
     parser.add_argument("--exp_name"         , type=str,   help="experiment name, used as folder prefix and wandb name, defaults to mmdd_hhmm")

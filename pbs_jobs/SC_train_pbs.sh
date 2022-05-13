@@ -11,10 +11,10 @@ conda activate pyt-gpu
 python -V
 
 echo program excution start: $(date)
-program="../SparseChem_Train_mini.py"
 layers=""
 dropouts=""
-echo "Number Layers: $num_layers   Layer size: $layer   Dropout: $dropout  Task LR: $lr "
+program="../SparseChem_Train.py"
+echo "Proj: $project_name  Lyrs: $num_layers   Lyr sz: $layer   Dropout: $dropout  Task LR: $lr "
 
 ## SparseChem needs a list of Layers + 1 , eg. 100 x 2 hidden layers : [100 100 100] 
 for ((i=0 ; i <= $num_layers ; i +=1)); do
@@ -27,6 +27,7 @@ echo "Number Layers: $num_layers   Layer size: $layers   Dropout: $dropouts  Tas
 python                               ${program} \
    --data_dir                        ${datadir} \
    --output_dir                       ${outdir} \
+   --project_name               ${project_name} \
    --exp_desc       ${JOBID} - SparseChem Train \
    --x                      chembl_23mini_x.npy \
    --y_class                chembl_23mini_y.npy \
