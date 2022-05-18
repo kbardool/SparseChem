@@ -7,22 +7,26 @@ num_layers_list=( 0 1 2 3 4 5 )
 layer_size_list=(2000  )
 dropout_list=(0.00  0.10  0.20  0.30  0.40  0.50  0.60  0.70  0.80  0.90)
 # dropout_list=(0.00 0.05 0.10 0.15 0.20 0.25 0.30 0.35 0.40 0.45 0.50 0.55 0.60 0.65 0.70 0.75 0.80 0.85 0.90 0.95)
-
 # layer_size_list=(100 200 300 400 500 600 700 800 )
-# dropout_list=(0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 )
-# dropout_list=(0.00 0.05 0.10 0.15 0.20 0.25 0.3 0.35 0.4 0.45 )
-# dropout_list=(0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95)
-# dropout_list=(0.0 0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95)
-project_name="SparseChem-Mini"
-datadir="../../MLDatasets/chembl23_mini"
-outdir="../../experiments/SparseChem-mini"
-program="../SparseChem_Train.py"
-project_name="SparseChem-Mini"
-x_file="chembl_23mini_x.npy"
-y_file="chembl_23mini_y.npy"
-fold_file="chembl_23mini_folds.npy"
+# dropout_list=(0.00 0.05 0.10 0.15 0.20 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 )
+
+project_name="SparseChem-Synt"
+datadir="../../MLDatasets/chembl29"
+outdir="../../experiments/SparseChem-cb29"
+x_file="chembl_29_x.npy"
+y_file="chembl_29_thresh_y.npy"
+fold_file="chembl_29_folding.npy"
+
+# project_name="SparseChem-Mini"
+# datadir="../../MLDatasets/chembl23_mini"
+# outdir="../../experiments/SparseChem-mini"
+# x_file="chembl_23mini_x.npy"
+# y_file="chembl_23mini_y.npy"
+# fold_file="chembl_23mini_folds.npy"
+
 # echo  " DATADIR: $datadir    OUTDIR: $outdir    "
 
+RUN_SCRIPT=SC_train_pbs.sh
 # PBS -M kevin.bardool@kuleuven.be
 # PBS -l pmem=5gb
 # PBS -l qos=debugging
@@ -33,6 +37,8 @@ pbs_allocate="-l nodes=1:ppn=9:gpus=1,partition=gpu,walltime=06:00:00 "
 # echo  $pbs_account
 # echo  $pbs_folders
 # echo  $pbs_allocate
+
+# echo  " DATADIR: $datadir    OUTDIR: $outdir    CONFIG FILE: $config"
 
 submit_list(){ 
     for num_layers in ${num_layers_list[@]}; do                 
