@@ -1,11 +1,11 @@
 #!/bin/bash
 dev="cuda:0"
-epochs=100
-lr=0.00001  
+epochs=200
+lr=0.001  
 
-layer=2000
-num_layers=2
-dropout=0.30
+layer=4000
+num_layers=1
+dropout=0.90
 batch_size=4096
 
 
@@ -42,9 +42,9 @@ pbs_allocate="-l nodes=1:ppn=9:gpus=1,partition=gpu,walltime=06:00:00 "
 # echo  " DATADIR: $datadir    OUTDIR: $outdir    CONFIG FILE: $config"
 
 
-job_name="SC-${layer}x${num_layers}-${dropout}" 
+job_name="SC-29-${layer}x${num_layers}-${dropout}" 
 
 printf " $job_name  Epochs: $epochs   Task LR: $lr  ---> "
-qsub $RUN_SCRIPT  -N $job_name  $pbs_account  $pbs_allocate  $pbs_folders \
+qsub $RUN_SCRIPT   -N $job_name  $pbs_account  $pbs_allocate  $pbs_folders \
 -v epochs=$epochs,batch_size=$batch_size,num_layers=$num_layers,layer=$layer,dropout=$dropout,datadir=$datadir,outdir=$outdir,lr=$lr,dev=$dev,\
 project_name=$project_name,x_file=$x_file,y_file=$y_file,fold_file=$fold_file

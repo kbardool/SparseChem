@@ -42,7 +42,7 @@ pbs_allocate="-l nodes=1:ppn=9:gpus=1,partition=gpu,walltime=06:00:00 "
 # echo  " DATADIR: $datadir    OUTDIR: $outdir    CONFIG FILE: $config"
 
 
-job_name="SC-${layer}x${num_layers}-${dropout}" 
+job_name="SC-MN-${layer}x${num_layers}-${dropout}" 
 
 printf " $job_name  Epochs: $epochs   Task LR: $lr  ---> "
 qsub $RUN_SCRIPT  -N $job_name  $pbs_account  $pbs_allocate  $pbs_folders \

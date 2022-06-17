@@ -2,9 +2,10 @@
 dev="cuda:0"
 epochs=100
 lr_list=(0.001 )
+batch_size=128
 
-num_layers_list=( 0 1 2 3 4 5 )
-layer_size_list=(2000  )
+num_layers_list=( 0  )
+layer_size_list=(4000  )
 dropout_list=(0.00  0.10  0.20  0.30  0.40  0.50  0.60  0.70  0.80  0.90)
 # dropout_list=(0.00 0.05 0.10 0.15 0.20 0.25 0.30 0.35 0.40 0.45 0.50 0.55 0.60 0.65 0.70 0.75 0.80 0.85 0.90 0.95)
 # layer_size_list=(100 200 300 400 500 600 700 800 )
@@ -47,10 +48,10 @@ submit_list(){
                 for dropout in  ${dropout_list[@]}; do
                     # echo " Epochs: $epochs    Lyrs: $num_layers   Lyr sz: $layer   Dropout: $dropout  Task LR: $lr device: $dev \n"
                     # printf " Epochs: %s    Lyrs: %d   Lyr sz: %4d   Dropout: %.2f  Task LR: %.3f  device: %s --> "  $epochs $num_layers $layer $dropout $lr $dev
-                    job_name="SC-${layer}x${num_layers}-${dropout}"
+                    job_name="SC-MN-${layer}x${num_layers}-${dropout}"
                     printf " $job_name  Epochs: $epochs   Task LR: $lr  dev: $dev ---> "
                     qsub $1 -N $job_name  $pbs_account   $pbs_allocate   $pbs_folders \
-                        -v epochs=$epochs,num_layers=$num_layers,layer=$layer,dropout=$dropout,datadir=$datadir,outdir=$outdir,lr=$lr,dev=$dev
+                        -v epochs=$epochs,batch_size=$batch_size,num_layers=$num_layers,layer=$layer,dropout=$dropout,datadir=$datadir,outdir=$outdir,lr=$lr,dev=$dev
                 done
             done
         done
