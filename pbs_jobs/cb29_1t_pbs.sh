@@ -1,41 +1,39 @@
 #!/bin/bash
-dev="cuda:0"
-epochs=200
-lr_list=(0.001)
-batch_size=4096
-
-num_layers_list=( 0)
-layer_size_list=( 4000 )
-dropout_list=( 0.40 0.50 0.60)
-# dropout_list=( 0.90 0.80 0.70 0.60 0.50 )
-# dropout_list=(0.10 0.20 0.30 0.40 )
-# dropout_list=(0.10 0.20 0.30 0.40  0.50  0.60  0.70  0.80 0.90)
-# dropout_list=(0.00  0.10  0.20  0.30  0.40  0.50  0.60  0.70  0.80  0.90)
-# dropout_list=(0.00 0.05 0.10 0.15 0.20 0.25 0.30 0.35 0.40 0.45 0.50 0.55 0.60 0.65 0.70 0.75 0.80 0.85 0.90 0.95)
-# layer_size_list=(100 200 300 400 500 600 700 800 )
-# dropout_list=(0.00 0.05 0.10 0.15 0.20 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 )
-
-project_name="SparseChem-CB29"
-datadir="../../MLDatasets/chembl29"
-outdir="../../experiments/SparseChem-cb29"
-x_file="chembl_29_x.npy"
-y_file="chembl_29_thresh_y.npy"
-fold_file="chembl_29_folding.npy"
-# echo  " DATADIR: $datadir    OUTDIR: $outdir    "
-
-RUN_SCRIPT=SC_train_pbs.sh
 # PBS -M kevin.bardool@kuleuven.be
 # PBS -l pmem=5gb
 # PBS -l qos=debugging
 pbs_account="-A lp_symbiosys "
 pbs_folders="-e ../pbs_output/  -o ../pbs_output/ "
-pbs_allocate="-l nodes=1:ppn=9:gpus=1,partition=gpu,walltime=06:00:00 "
-# pbs_allocate="-l nodes=1:ppn=9,walltime=06:00:00 "
-# echo  $pbs_account
-# echo  $pbs_folders
-# echo  $pbs_allocate
+# pbs_allocate="-l nodes=1:ppn=9,walltime=24:00:00 "
+pbs_allocate="-l nodes=1:ppn=9:gpus=1,partition=gpu,walltime=24:00:00 "
+project_name="SparseChem-cb29-1Task"
+# datadir="../../MLDatasets/chembl29"
+datadir="../../MLDatasets/chembl29_10task"
+outdir="../../experiments/SparseChem-cb29-10task"
+RUN_SCRIPT=SC_train_pbs.sh
+x_file="chembl_29_X.npy"
+y_file="chembl_29_Y_all.npy"
+fold_file="chembl_29_folding.npy"
+#=========================================================================
+dev="cuda:0"
+epochs=150
+lr_list=(0.001)
+batch_size=4096
 
-# echo  " DATADIR: $datadir    OUTDIR: $outdir    CONFIG FILE: $config"
+num_layers_list=(3 4 5 )
+layer_size_list=( 4000 )
+dropout_list=( 0.80 )
+# dropout_list=( 0.20 0.30 0.40) 
+# dropout_list=(0.10 0.20  0.30  0.40  0.50  0.60  0.70  0.80  0.90)
+# dropout_list=( 0.70  0.80  0.90)
+# dropout_list=(0.10 0.20 0.30 0.40 0.50 0.60 )
+#=========================================================================
+# dropout_list=(0.00 0.05 0.10 0.15 0.20 0.25 0.30 0.35 0.40 0.45 0.50 0.55 0.60 0.65 0.70 0.75 0.80 0.85 0.90 0.95)
+# layer_size_list=(100 200 300 400 500 600 700 800 )
+# echo  " pbs_account:   $pbs_account"
+# echo  " pbs_folders:   $pbs_folders"
+# echo  " pbs_allocat:   $pbs_allocate"
+# echo  " DATADIR    :   $datadir      OUTDIR: $outdir    CONFIG FILE: $config"
 
 submit_list(){ 
     for num_layers in ${num_layers_list[@]}; do                 
