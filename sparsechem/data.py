@@ -3,6 +3,9 @@ from torch.utils.data import Dataset
 import torch
 import scipy.sparse
 import numpy as np
+#import warnings
+# from torch.serialization import SourceChangeWarning 
+#warnings.filterwarnings("ignore", category=UserWarning)
 
 class SparseDataset(Dataset):
     def __init__(self, x, y):
@@ -92,7 +95,7 @@ def to_idx_tensor(idx_list):
     """Turns list of lists [num_lists, 2] tensor of coordinates"""
     xrow = np.repeat(np.arange(len(idx_list)), [len(i) for i in idx_list])
     xcol = np.concatenate(idx_list)
-    return torch.LongTensor([xrow, xcol])
+    return torch.LongTensor(np.array([xrow, xcol]))
 
 def patterns_match(x, y):
     if y.shape != x.shape:             return False
