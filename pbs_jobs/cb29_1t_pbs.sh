@@ -9,7 +9,7 @@ pbs_allocate="-l nodes=1:ppn=9:gpus=1,partition=gpu,walltime=24:00:00 "
 project_name="SparseChem-cb29-1Task"
 # datadir="../../MLDatasets/chembl29"
 datadir="../../MLDatasets/chembl29_10task"
-outdir="../../experiments/SparseChem-cb29-1task"
+outdir="../../experiments/SparseChem-cb29-10task"
 RUN_SCRIPT=SC_train_pbs.sh
 x_file="chembl_29_X.npy"
 y_file="chembl_29_Y_all.npy"
@@ -22,7 +22,7 @@ batch_size=4096
 
 num_layers_list=(3 4 5 )
 layer_size_list=( 4000 )
-dropout_list=( 0.50 )
+dropout_list=( 0.80 )
 # dropout_list=( 0.20 0.30 0.40) 
 # dropout_list=(0.10 0.20  0.30  0.40  0.50  0.60  0.70  0.80  0.90)
 # dropout_list=( 0.70  0.80  0.90)
