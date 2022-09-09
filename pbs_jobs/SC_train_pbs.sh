@@ -44,6 +44,7 @@ python                               ${program} \
    --folding                       ${fold_file} \
    --dev                                 ${dev} \
    --fold_va                                  0 \
+   --fold_te                                  1 \
    --fold_inputs                          32000 \
    --batch_size                   ${batch_size} \
    --hidden_sizes                     ${layers} \

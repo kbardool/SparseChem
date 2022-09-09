@@ -81,16 +81,27 @@ def check_for_improvement(ns, metrics):
     #------------------------------------------------------------------------ 
     #  Save Best Checkpoint Code (saved below and in sparsechem_env_dev.py)
     #----------------------------------------------------------------------- 
-    ## ns.curriculum_epochs = (environ.num_layers * opt['curriculum_speed']) 
 
-    if  metrics["classification_agg"]['avg_prec_score'] > ns.best_value:
-        print('Previous best_epoch: %5d   best iter: %5d,   best_value: %.5f' % (ns.best_epoch, ns.best_iter, ns.best_value))        
-        ns.best_value   = metrics['classification_agg']['avg_prec_score']
+    # if  metrics["classification_agg"]['avg_prec_score'] > ns.best_accuracy:
+
+    if  metrics["classification_agg"]['roc_auc_score'] > ns.best_roc_auc:
+    
+        print(f' Previous best_epoch: {ns.best_epoch:5d}    '
+              f'   best_accuracy: {ns.best_accuracy:.5f}    best ROC auc: {ns.best_roc_auc:.5f}')        
+
+        ns.best_accuracy   = metrics['classification_agg']['avg_prec_score']
+        ns.best_roc_auc = metrics['classification_agg']['roc_auc_score']
         ns.best_metrics = metrics
         ns.best_epoch   = ns.current_epoch
-        print('New      best_epoch: %5d   best iter: %5d,   best_value: %.5f' % (ns.best_epoch, ns.best_iter, ns.best_value))  
-        wandb.log({"best_accuracy": ns.best_value,
-                   "best_epoch"   : ns.best_epoch})               
+     
+        wandb.log({"best_roc_auc"   : ns.best_roc_auc,
+                   "best_accuracy"  : ns.best_accuracy,
+                   "best_epoch"     : ns.best_epoch }, 
+                   step = ns.current_epoch)
+     
+        print(f' New      best_epoch: {ns.best_epoch:5d}    '
+              f'   best_accuracy: {ns.best_accuracy:.5f}    best ROC auc: {ns.best_roc_auc:.5f}')        
+
 #         model_label     = 'model_best_seed_%04d' % (opt['random_seed'])
 #         environ.save_checkpoint(model_label, ns.current_iter, ns.current_epoch) 
 #         metrics_label = 'metrics_best_seed_%04d.pickle' % (opt['random_seed'])

@@ -282,7 +282,8 @@ ns.current_epoch  = 0
 ns.current_iter   = 0
 ns.best_results   = {}
 ns.best_metrics   = None
-ns.best_value     = 0 
+ns.best_accuracy  = 0 
+ns.best_roc_auc   = 0 
 ns.best_iter      = 0
 ns.best_epoch     = 0
 ns.p_epoch        = 0
@@ -290,6 +291,7 @@ ns.num_prints     = 0
 
 init_wandb(ns, args)
 wandb.define_metric("best_accuracy", summary="last")
+wandb.define_metric("best_roc_auc", summary="last")
 wandb.define_metric("best_epoch", summary="last")
 
 #------------------------------------------------------------------
@@ -394,7 +396,7 @@ for ns.current_epoch in range(ns.current_epoch, ns.end_epoch, 1):
 
     if args.profile == 1:
        with open(f"{args.output_dir}/memprofile.txt", "a+") as profile_file:
-            profile_file.write(f"\nAfter epoch {epoch} model detailed report:\n\n")
+            profile_file.write(f"\nAfter epoch {ns.current_epoch} model detailed report:\n\n")
             with redirect_stdout(profile_file):
                  reporter.report()
 
@@ -446,7 +448,8 @@ for ns.current_epoch in range(ns.current_epoch, ns.end_epoch, 1):
 
 print(f"Best Epoch :       {ns.best_epoch}\n"
       f"Best Iteration :   {ns.best_iter} \n"
-      f"Best Precision :   {ns.best_value:.5f}\n")
+      f"Best Accuracy  :   {ns.best_accuracy:.5f}\n"
+      f"Best ROC AUC   :   {ns.best_roc_auc:.5f}\n")
 
 pp.pprint(results_va['classification_agg'].to_dict())
 
