@@ -93,9 +93,17 @@ def get_row(csr, row):
 
 def to_idx_tensor(idx_list):
     """Turns list of lists [num_lists, 2] tensor of coordinates"""
+    # print(f" idx_list  {len(idx_list)}")
+    # for i in idx_list:
+    #     print(f" idx_list  {len(i)} \n {i}")
+
     xrow = np.repeat(np.arange(len(idx_list)), [len(i) for i in idx_list])
     xcol = np.concatenate(idx_list)
+    # print(f" xrow  {xrow.shape}  {xrow.dtype}   {xrow}")
+    # print(f" xcol  {xcol.shape}  {xcol.dtype}   {xcol[:20]}")
     return torch.LongTensor(np.array([xrow, xcol]))
+
+    # return torch.LongTensor([xrow, xcol])
 
 def patterns_match(x, y):
     if y.shape != x.shape:             return False

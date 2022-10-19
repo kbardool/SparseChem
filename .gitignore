@@ -11,7 +11,7 @@ trained_models/
 test_chembl23/
 build/
 dist/
-sparsechem.code-workspace
+*.code-workspace
 train.bat
 .idea
 *.code-workspace
