@@ -24,7 +24,7 @@ import sparsechem as sc
 from  datetime import datetime
 from  contextlib import redirect_stdout
 from  sparsechem import Nothing
-from  sparsechem.notebook_modules import init_wandb,check_for_improvement, initialize
+from  sparsechem.notebook_modules import init_wandb,check_for_improvement, initialize, assertions
 
 import scipy.io
 import scipy.sparse
@@ -43,8 +43,6 @@ pp = pprint.PrettyPrinter(indent=4)
 np.set_printoptions(edgeitems=3, infstr='inf', linewidth=150, nanstr='nan')
 torch.set_printoptions( linewidth=132)
 
-# os.environ['WANDB_NOTEBOOK_NAME'] = 'SparseChem_Train_mini'
-#warnings.filterwarnings("ignore", category=UserWarning)    
 warnings.filterwarnings("ignore", category=UserWarning)
     
 if torch.cuda.is_available():
@@ -65,34 +63,7 @@ pp.pprint(vars(args))
 # ### Assertions
 #------------------------------------------------------------------
  
-if (args.last_hidden_sizes is not None) and ((args.last_hidden_sizes_class is not None) or (args.last_hidden_sizes_reg is not None)):
-    raise ValueError("Head specific and general last_hidden_sizes argument were both specified!")
-if (args.last_hidden_sizes is not None):
-    args.last_hidden_sizes_class = args.last_hidden_sizes
-    args.last_hidden_sizes_reg   = args.last_hidden_sizes
-
-if args.last_hidden_sizes_reg is not None:
-    assert len(args.last_hidden_sizes_reg) == len(args.dropouts_reg), "Number of hiddens and number of dropout values specified must be equal in the regression head!"
-if args.last_hidden_sizes_class is not None:
-    assert len(args.last_hidden_sizes_class) == len(args.dropouts_class), "Number of hiddens and number of dropout values specified must be equal in the classification head!"
-if args.hidden_sizes is not None:
-    assert len(args.hidden_sizes) == len(args.dropouts_trunk), "Number of hiddens and number of dropout values specified must be equal in the trunk!"
-
-if args.class_feature_size == -1:
-    args.class_feature_size = args.hidden_sizes[-1]
-if args.regression_feature_size == -1:
-    args.regression_feature_size = args.hidden_sizes[-1]
-
-assert args.regression_feature_size <= args.hidden_sizes[-1], "Regression feature size cannot be larger than the trunk output"
-assert args.class_feature_size <= args.hidden_sizes[-1], "Classification feature size cannot be larger than the trunk output"
-assert args.regression_feature_size + args.class_feature_size >= args.hidden_sizes[-1], "Unused features in the trunk! Set regression_feature_size + class_feature_size >= trunk output!"
-#if args.regression_feature_size != args.hidden_sizes[-1] or args.class_feature_size != args.hidden_sizes[-1]:
-#    raise ValueError("Hidden spliting not implemented yet!")
-
-assert args.input_size_freq is None, "Using tail compression not yet supported."
-
-if (args.y_class is None) and (args.y_regr is None):
-    raise ValueError("No label data specified, please add --y_class and/or --y_regr.")
+assertions(args)
 
 #------------------------------------------------------------------
 # ### Summary writer
@@ -134,8 +105,8 @@ tasks_regr  = sc.load_task_weights(args.weights_regr, y=y_regr, label="y_regr")
 ## Input transformation
 #------------------------------------------------------------------
 ecfp = sc.fold_transform_inputs(ecfp, folding_size=args.fold_inputs, transform=args.input_transform)
-
 print(f"count non zero:{ecfp[0].count_nonzero()}")
+
 num_pos    = np.array((y_class == +1).sum(0)).flatten()
 num_neg    = np.array((y_class == -1).sum(0)).flatten()
 num_class  = np.array((y_class != 0).sum(0)).flatten()
@@ -146,6 +117,9 @@ num_regr   = np.bincount(y_regr.indices, minlength=y_regr.shape[1])
 
 assert args.min_samples_auc is None, "Parameter 'min_samples_auc' is obsolete. Use '--min_samples_class' that specifies how many samples a task needs per FOLD and per CLASS to be aggregated."
 
+#------------------------------------------------------------------
+## Aggregation Weights 
+#------------------------------------------------------------------
 if tasks_class.aggregation_weight is None:
     ## using min_samples rule
     fold_pos, fold_neg = sc.class_fold_counts(y_class, folding)
@@ -216,7 +190,7 @@ pos_rate = np.clip(pos_rate, 0, 0.99)
 cal_fact_aucpr = pos_rate*(1-pos_rate_ref)/(pos_rate_ref*(1-pos_rate))
 
 print(f"Input dimension   : {ecfp.shape[1]}")
-print(f"Input dimension   : {ecfp.shape[1]}")
+print(f"# Samples         : {ecfp.shape[0]}")
 print(f"Training dataset  : {ecfp[idx_tr].shape}")
 print(f"Validation dataset: {ecfp[idx_va].shape}")
 print()
