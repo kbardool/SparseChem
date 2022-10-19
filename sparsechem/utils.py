@@ -546,6 +546,16 @@ def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weig
             out["yc_cat_loss"] = loss_class(yc_cat_hat, yc_cat_data).sum() 
 
 
+        print(f"yc_ind[0]  ({yc_ind[0].shape}) : {yc_ind[0]}")
+        print(f"yc_ind[1]  ({yc_ind[1].shape}) : {yc_ind[1]}")
+        print(f"yc_data    ({  yc_data.shape}) : {yc_data}")
+        print(f"yc_hat     ({   yc_hat.shape}) : {yc_hat}")
+        print(f"yc_w       ({     yc_w.shape}) :  {yc_w}")
+        print(f"yc_loss        : {loss_class(yc_hat, yc_data)}")
+        print(f"yc_loss * yc_w : {loss_class(yc_hat, yc_data) * yc_w}")
+        print(f"(yc_loss * yc_w).sum() : {(loss_class(yc_hat, yc_data) * yc_w).sum()}")
+        print(f"yc_w.sum()     : {yc_w.sum()}")
+
     if net.regr_output_size > 0:
         yr_ind  = b["yr_ind"].to(dev, non_blocking=True)
         yr_data = b["yr_data"].to(dev, non_blocking=True)
@@ -623,7 +633,6 @@ def train_class_regr(net, optimizer, loader, loss_class, loss_regr, dev,
         loss = fwd["yc_loss"] + fwd["yr_loss"] + fwd["yc_cat_loss"] + net.GetRegularizer()
 
         loss_norm = loss / norm
- 
         if mixed_precision:
            scaler.scale(loss_norm).backward()
         else:
@@ -668,6 +677,7 @@ def aggregate_results(df, weights):
         return pd.Series(np.nan, index=df.columns)
     df2 = df.where(pd.isnull, 1) * weights[:,None]
     return (df2.multiply(1.0 / df2.sum(axis=0), axis=1) * df).sum(axis=0)
+
 
 def evaluate_class_regr(net, loader, loss_class, loss_regr, tasks_class, tasks_regr, dev, progress=True, normalize_inv=None, cal_fact_aucpr=1):
     class_w = tasks_class.aggregation_weight

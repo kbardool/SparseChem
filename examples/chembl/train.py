@@ -1,7 +1,7 @@
 # Copyright (c) 2020 KU Leuven
-from sparsechem.utils import training_arguments
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+from sparsechem.utils import training_arguments
 import sparsechem as sc
 import scipy.io
 import scipy.sparse
@@ -19,6 +19,7 @@ import pprint
 import csv
 #from apex import amp
 from contextlib import redirect_stdout
+import pprint  
 from sparsechem import Nothing
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import MultiStepLR
@@ -116,8 +117,9 @@ def vprint(s=""):
 vprint(f"\nArgs : \n--------------")
 # vprint(args)
 
-vprint(args)
-
+##
+## Generate runname if one wasn't provided in input args 
+##
 if args.class_feature_size == -1:
     args.class_feature_size = args.hidden_sizes[-1]
 if args.regression_feature_size == -1:
@@ -138,7 +140,7 @@ else:
     name += f"_fva{args.fold_va}_fte{args.fold_te}"
     if args.mixed_precision == 1:
         name += f"_mixed_precision"
-vprint(f"Run name is '{name}'.")
+vprint(f"\nRun name is '{name}'.")
 
 if args.profile == 1:
     assert (args.save_board==1), "Tensorboard should be enabled to be able to profile memory usage."
@@ -414,11 +416,15 @@ for epoch in range(args.epochs):
     last_round = epoch == args.epochs - 1
 
     if eval_round or last_round:
-        results_va = sc.evaluate_class_regr(net, loader_va, 
-                                            loss_class, loss_regr, 
-                                            tasks_class=tasks_class, tasks_regr=tasks_regr, 
-                                            dev=dev, progress = args.verbose >= 2, normalize_inv=normalize_inv, cal_fact_aucpr=cal_fact_aucpr)
-   #     import ipdb; ipdb.set_trace()
+        results_va = sc.evaluate_class_regr(net, 
+                                            loader_va, 
+                                            loss_class, 
+                                            loss_regr, 
+                                            tasks_class=tasks_class, 
+                                            tasks_regr=tasks_regr, 
+                                            dev=dev, 
+                                            progress = args.verbose >= 2)
+        
         for key, val in results_va["classification_agg"].items():
             writer.add_scalar(key+"/va", val, epoch)
         for key, val in results_va["regression_agg"].items():

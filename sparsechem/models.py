@@ -212,7 +212,6 @@ class MiddleNet(torch.nn.Module):
 class CatLastNet(torch.nn.Module):
     def __init__(self, conf):
         super().__init__()
-        print('-'*100)
 
         self.non_linearity = conf.last_non_linearity
         
@@ -232,11 +231,12 @@ class CatLastNet(torch.nn.Module):
         self.apply(self.init_weights)
 
     def init_weights(self, m):
+        print(f"\n LastNet - init_weights - apply to module {m}")
         if type(m) == nn.Linear:
             torch.nn.init.xavier_uniform_(m.weight, gain=torch.nn.init.calculate_gain("sigmoid"))
             if m.bias is not None:
                 m.bias.data.fill_(0.1)
-
+    
     def forward(self, H):
         return self.net(H)
 
@@ -391,10 +391,23 @@ class SparseFFN_combined(nn.Module):
     self.shared_trunk = shared_trunk
     self.local_trunk  = local_trunk
     self.head = head
+class SparseFFN_combined(nn.Module):
+  def __init__(self, conf, shared_trunk, local_trunk, head):
+    super().__init__()
+    if hasattr(conf, "class_output_size"):
+       self.class_output_size = conf.class_output_size
+       self.regr_output_size  = conf.regr_output_size
+    else:
+       self.class_output_size = None
+       self.regr_output_size  = None
+    self.shared_trunk = shared_trunk
+    self.local_trunk  = local_trunk
+    self.head = head
 
   @property
   def has_2heads(self):
     return self.class_output_size is not None
+
   def forward(self, input):
     shared_output = self.shared_trunk(input)
     if self.local_trunk is not None:
@@ -503,6 +516,104 @@ class SparseFFN_V2(torch.nn.Module):
         return out[:, :self.class_output_size], out[:, self.class_output_size:]
 
 
+
+
+##----------------------------------------------------
+##  SparseFFN V2: Complete network
+##----------------------------------------------------
+class SparseFFN_V2(torch.nn.Module):
+    def __init__(self, conf):
+        super().__init__()
+        print(f" defining SparseFFN V2")
+
+        if hasattr(conf, "class_output_size"):
+            self.class_output_size = conf.class_output_size
+            self.regr_output_size  = conf.regr_output_size
+        else:
+            self.class_output_size = None
+            self.regr_output_size  = None
+
+        if conf.input_size_freq is None:
+            conf.input_size_freq = conf.input_size
+
+        # self.net = nn.Sequential()
+
+    ##----------------------------------------------------
+    ## Input Net        
+    ##----------------------------------------------------
+        assert conf.input_size_freq <= conf.input_size, \
+                f"Number of high important features ({conf.input_size_freq}) should not be higher input size ({conf.input_size})."
+        self.input_splits = [conf.input_size_freq, conf.input_size - conf.input_size_freq]
+        
+        # self.input_net_freq = nn.Sequential(
+                    # SparseLinear(self.input_splits[0], conf.hidden_sizes[0])
+                # )
+        self.add_module("InputNet",SparseLinear(self.input_splits[0], conf.hidden_sizes[0]))
+
+        print(f" input_size_freq: {conf.input_size_freq}    input_size: {conf.input_size}")
+        print(f" self.input_splits: {self.input_splits}")
+ 
+
+    ##----------------------------------------------------
+    ## Middle Net        
+    ##----------------------------------------------------
+        # self.middle_net = nn.Sequential()
+        
+        for i in range(len(conf.hidden_sizes) - 1):
+            self.add_module(f"layer_{i}_nonlinearity", non_linearities[conf.middle_non_linearity]() )
+            self.add_module(f"layer_{i}_dropout", nn.Dropout(conf.middle_dropout) )
+            self.add_module(f"layer_{i}_linear", nn.Linear(conf.hidden_sizes[i], conf.hidden_sizes[i+1], bias=True) )
+
+ 
+
+    ##----------------------------------------------------
+    ## Last Net        
+    ##----------------------------------------------------
+        self.non_linearity = conf.last_non_linearity
+        non_linearity = non_linearities[conf.last_non_linearity]
+        
+        i+= 1
+
+        self.add_module(f"layer_{i}_nonlinearity",  non_linearity())
+        self.add_module(f"layer_{i}_dropout",       nn.Dropout(conf.last_dropout))
+        self.add_module(f"layer_{i}_linear",        nn.Linear(conf.hidden_sizes[-1], conf.output_size))
+
+        self.apply(self.init_weights)
+
+
+    def init_weights(self, m):
+        print(f" SparseNetFFN_V2 - init_weights - apply to module {m}")
+
+        if type(m) == SparseLinear:
+            torch.nn.init.xavier_uniform_(m.weight, gain=torch.nn.init.calculate_gain("relu"))
+            m.bias.data.fill_(0.1)
+        
+        if type(m) == nn.Linear:
+            torch.nn.init.xavier_uniform_(m.weight, gain=torch.nn.init.calculate_gain("relu"))
+            if m.bias is not None:
+                m.bias.data.fill_(0.1)
+
+    @property
+    def has_2heads(self):
+        return self.class_output_size is not None
+
+
+    def forward(self, X, last_hidden=False):
+        print(f"SparseFFN V2 forward - last_hidden : {last_hidden}")
+        if last_hidden:
+            H = self.net[:-1](X)
+            return self.net[-1].net[:-1](H)
+        out = self.net(X)
+        if self.class_output_size is None:
+            return out
+        ## splitting to class and regression
+        return out[:, :self.class_output_size], out[:, self.class_output_size:]
+
+
+
+##----------------------------------------------------
+##  Losses 
+##----------------------------------------------------
 
 ##----------------------------------------------------
 ##  Losses 

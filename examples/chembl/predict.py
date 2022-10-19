@@ -35,10 +35,7 @@ parser.add_argument("--model"       , help="Pytorch model file (.pt)", type=str,
 parser.add_argument("--batch_size"  , help="Batch size (default 4000)", type=int, default=4000)
 parser.add_argument("--last_hidden" , help="If set to 1 returns last hidden layer instead of Yhat", type=int, default=0)
 parser.add_argument("--dropout"     , help="If set to 1 enables dropout for evaluation", type=int, default=0)
-parser.add_argument("--inverse_normalization", help="If set to 1 enables inverse normalization given means and variances from config file", type=int, default=0)
-parser.add_argument("--weights_class", "--task_weights", "--weights_classification", help="CSV file with columns task_id, training_weight, aggregation_weight, task_type (for classification tasks)", type=str, default=None)
 parser.add_argument("--dev"         , help="Device to use (default cuda:0)", type=str, default="cuda:0")
-parser.add_argument("--num_workers", help="Number of workers for DataLoader", type=int, default=4)
 
 args = parser.parse_args()
 
