@@ -211,8 +211,10 @@ idx_va  = np.where(folding == fold_va)[0]
 
 y_class_tr = y_class[idx_tr]
 y_class_va = y_class[idx_va]
+
 y_regr_tr  = y_regr[idx_tr]
 y_regr_va  = y_regr[idx_va]
+
 y_censor_tr = y_censor[idx_tr]
 y_censor_va = y_censor[idx_va]
 
@@ -248,6 +250,7 @@ args.regr_output_size  = dataset_tr.regr_output_size
 ## Instantiate Model
 ##
 dev  = torch.device(args.dev)
+print(' Torch device: ', dev)
 net  = sc.SparseFFN(args).to(dev)
 
 ##
@@ -301,20 +304,30 @@ for epoch in range(args.epochs):
     last_round = epoch == args.epochs - 1
 
     if eval_round or last_round:
-        results_va = sc.evaluate_class_regr(net, loader_va, 
-                                            loss_class, loss_regr, 
-                                            tasks_class=tasks_class, tasks_regr=tasks_regr, 
-                                            dev=dev, progress = args.verbose >= 2)
+        results_va = sc.evaluate_class_regr(net, 
+                                            loader_va, 
+                                            loss_class, 
+                                            loss_regr, 
+                                            tasks_class=tasks_class, 
+                                            tasks_regr=tasks_regr, 
+                                            dev=dev, 
+                                            progress = args.verbose >= 2)
+        
         for key, val in results_va["classification_agg"].items():
             writer.add_scalar(key+"/va", val, epoch)
         for key, val in results_va["regression_agg"].items():
             writer.add_scalar(key+"/va", val, epoch)
 
         if args.eval_train:
-            results_tr = sc.evaluate_class_regr(net, loader_tr, 
-                                                loss_class, loss_regr, 
-                                                tasks_class=tasks_class, tasks_regr=tasks_regr, 
-                                                dev=dev, progress = args.verbose >= 2)
+            results_tr = sc.evaluate_class_regr(net, 
+                                                loader_tr, 
+                                                loss_class, 
+                                                loss_regr, 
+                                                tasks_class=tasks_class, 
+                                                tasks_regr=tasks_regr, 
+                                                dev=dev, 
+                                                progress = args.verbose >= 2)
+            
             for key, val in results_tr["classification_agg"].items():
                 writer.add_scalar(key+"/tr", val, epoch)
             for key, val in results_tr["regression_agg"].items():

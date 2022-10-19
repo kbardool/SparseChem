@@ -32,6 +32,8 @@ class Nothing(object):
     def __repr__(self):
         return "Nothing"
 
+
+
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
@@ -334,6 +336,7 @@ def train_binary(net, optimizer, loader, loss, dev, task_weights, normalize_loss
                     b["x_ind"],
                     b["x_data"],
                     size = [b["batch_size"], loader.dataset.input_size]).to(dev)
+                    
         y_ind   = b["y_ind"].to(dev)
         y_w     = task_weights[y_ind[1]]
         y_data  = b["y_data"].to(dev)
@@ -367,6 +370,9 @@ def train_binary(net, optimizer, loader, loss, dev, task_weights, normalize_loss
 ##
 def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weights_regr, censored_weight=[], dev="cpu"):
     """returns full outputs from the network for the batch b"""
+    ## Convert input data to coo tensor
+    print(f"weights_class : {weights_class.shape}  {weights_class}")
+
     X = torch.sparse_coo_tensor(
         b["x_ind"],
         b["x_data"],
@@ -384,8 +390,8 @@ def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weig
 
     if net.class_output_size > 0:
         yc_ind  = b["yc_ind"].to(dev, non_blocking=True)
+        yc_data = b["yc_data"].to(dev, non_blocking=True)                
         yc_w    = weights_class[yc_ind[1]]
-        yc_data = b["yc_data"].to(dev, non_blocking=True)
         yc_hat  = yc_hat_all[yc_ind[0], yc_ind[1]]
         out["yc_ind"]  = yc_ind
         out["yc_data"] = yc_data
@@ -393,10 +399,20 @@ def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weig
         out["yc_loss"] = (loss_class(yc_hat, yc_data) * yc_w).sum()
         out["yc_weights"] = yc_w.sum()
 
+        print(f"yc_ind[0]  ({yc_ind[0].shape}) : {yc_ind[0]}")
+        print(f"yc_ind[1]  ({yc_ind[1].shape}) : {yc_ind[1]}")
+        print(f"yc_data    ({  yc_data.shape}) : {yc_data}")
+        print(f"yc_hat     ({   yc_hat.shape}) : {yc_hat}")
+        print(f"yc_w       ({     yc_w.shape}) :  {yc_w}")
+        print(f"yc_loss        : {loss_class(yc_hat, yc_data)}")
+        print(f"yc_loss * yc_w : {loss_class(yc_hat, yc_data) * yc_w}")
+        print(f"(yc_loss * yc_w).sum() : {(loss_class(yc_hat, yc_data) * yc_w).sum()}")
+        print(f"yc_w.sum()     : {yc_w.sum()}")
+
     if net.regr_output_size > 0:
         yr_ind  = b["yr_ind"].to(dev, non_blocking=True)
-        yr_w    = weights_regr[yr_ind[1]]
         yr_data = b["yr_data"].to(dev, non_blocking=True)
+        yr_w    = weights_regr[yr_ind[1]]
         yr_hat  = yr_hat_all[yr_ind[0], yr_ind[1]]
 
         out["ycen_data"] = b["ycen_data"]
@@ -425,7 +441,14 @@ def train_class_regr(net, optimizer, loader, loss_class, loss_regr, dev,
     net.train()
 
     int_count = 0
+    loop_ctr = 0 
     for b in tqdm(loader, leave=False, disable=(progress == False)):
+        loop_ctr += 1
+        
+        print('-'*50)
+        print(f"  Loop # {loop_ctr}")
+        print('-'*50)
+        
         if int_count == 0:
             optimizer.zero_grad()
 
@@ -435,8 +458,11 @@ def train_class_regr(net, optimizer, loader, loss_class, loss_regr, dev,
 
         fwd = batch_forward(net, b=b, 
                             input_size=loader.dataset.input_size, 
-                            loss_class=loss_class, loss_regr=loss_regr, 
-                            weights_class=weights_class, weights_regr=weights_regr, censored_weight=censored_weight, 
+                            loss_class=loss_class, 
+                            loss_regr=loss_regr, 
+                            weights_class=weights_class, 
+                            weights_regr=weights_regr, 
+                            censored_weight=censored_weight, 
                             dev=dev)
         loss = fwd["yc_loss"] + fwd["yr_loss"]
         loss_norm = loss / norm
@@ -448,6 +474,10 @@ def train_class_regr(net, optimizer, loader, loss_class, loss_regr, dev,
             optimizer.step()
             int_count = 0
 
+        # temporarily placed to stop loop         
+        if loop_ctr == 3:
+            break
+    
     if int_count > 0:
         ## process tail batch (should not happen)
         optimizer.step()
@@ -460,6 +490,7 @@ def aggregate_results(df, weights):
         return pd.Series(np.nan, index=df.columns)
     df2 = df.where(pd.isnull, 1) * weights[:,None]
     return (df2.multiply(1.0 / df2.sum(axis=0), axis=1) * df).sum(axis=0)
+
 
 def evaluate_class_regr(net, loader, loss_class, loss_regr, tasks_class, tasks_regr, dev, progress=True):
     class_w = tasks_class.aggregation_weight
@@ -484,7 +515,14 @@ def evaluate_class_regr(net, loader, loss_class, loss_regr, tasks_class, tasks_r
 
     with torch.no_grad():
         for b in tqdm(loader, leave=False, disable=(progress == False)):
-            fwd = batch_forward(net, b=b, input_size=loader.dataset.input_size, loss_class=loss_class, loss_regr=loss_regr, weights_class=tasks_class.training_weight, weights_regr=tasks_regr.training_weight, dev=dev)
+            fwd = batch_forward(net, b=b, 
+                                input_size=loader.dataset.input_size, 
+                                loss_class=loss_class, 
+                                loss_regr=loss_regr, 
+                                weights_class=tasks_class.training_weight, 
+                                weights_regr=tasks_regr.training_weight, 
+                                dev=dev)
+            
             loss_class_sum += fwd["yc_loss"]
             loss_regr_sum  += fwd["yr_loss"]
             loss_class_weights += fwd["yc_weights"]
@@ -678,6 +716,7 @@ def fold_transform_inputs(x, folding_size=None, transform="none"):
         x.data = np.log1p(x.data).astype(np.float32)
     else:
         raise ValueError(f"Unknown input transformation '{transform}'.")
+        
     return x
 
 def set_weights(net, filename="./tf_h400_inits.npy"):
@@ -727,17 +766,22 @@ def load_task_weights(filename, y, label):
         aggregation_weight
         task_type
     """
+    print(f" load_task_weights - filename: {filename} label: {label}")
     res = types.SimpleNamespace(training_weight=None, aggregation_weight=None, task_type=None, censored_weight=torch.FloatTensor())
+
     if y is None:
-        assert filename is None, f"Weights provided for {label}, please add also --{label}"
+        assert filename is None, f"Weights file {filename} provided for {label}, please add also --{label}"
         res.training_weight = torch.ones(0)
         return res
 
     if filename is None:
+        print(f" load_task_weights - no weights file provided, training_weights for all classes set to 1")
         res.training_weight = torch.ones(y.shape[1])
         return res
 
     df = pd.read_csv(filename)
+    
+    ## verify presence of proper column names
     df.rename(columns={"weight": "training_weight"}, inplace=True)
     ## also supporting plural form column names:
     df.rename(columns={c + "s": c for c in ["task_id", "training_weight", "aggregation_weight", "task_type", "censored_weight"]}, inplace=True)
@@ -746,8 +790,8 @@ def load_task_weights(filename, y, label):
     assert "training_weight" in df.columns, "training_weight is missing in task info CSV file"
     df.sort_values("task_id", inplace=True)
 
+    cols = ["", "task_id", "training_weight", "aggregation_weight", "task_type", "censored_weight"]
     for col in df.columns:
-        cols = ["", "task_id", "training_weight", "aggregation_weight", "task_type", "censored_weight"]
         assert col in cols, f"Unsupported colum '{col}' in task weight file. Supported columns: {cols}."
 
     assert y.shape[1] == df.shape[0], f"task weights for '{label}' have different size ({df.shape[0]}) to {label} columns ({y.shape[1]})."
@@ -759,11 +803,14 @@ def load_task_weights(filename, y, label):
     assert (df.task_id < df.shape[0]).all(), f"task ids in task weights (for {label}) must be below number of tasks"
 
     res.training_weight = torch.FloatTensor(df.training_weight.values)
+
     if "aggregation_weight" in df:
         assert (0 <= df.aggregation_weight).all(), f"Found negative aggregation_weight for {label}. Aggregation weights must be non-negative."
         res.aggregation_weight = df.aggregation_weight.values
+
     if "task_type" in df:
         res.task_type = df.task_type.values
+
     if "censored_weight" in df:
         assert (0 <= df.censored_weight).all(), f"Found negative censored_weight for {label}. Censored weights must be non-negative."
         res.censored_weight = torch.FloatTensor(df.censored_weight.values)
@@ -858,6 +905,8 @@ def training_arguments():
     parser.add_argument("--fold_te"           , help="Test fold number (removed from dataset)", type=int, default=None)
     parser.add_argument("--hidden_sizes"      , nargs="+", help="Hidden sizes", default=[], type=int, required=True)
     parser.add_argument("--input_transform"   , help="Transformation to apply to inputs", type=str, default="none", choices=["binarize", "none", "tanh", "log1p"])
+    # parser.add_argument("--input_size"      , help="Input size", type=int, default=None)
+    # parser.add_argument("--tail_hidden_size"  , help="Tail Hidden size", default=0, type=int)
     parser.add_argument("--input_size_freq"   , help="Number of high importance features", type=int, default=None)
     parser.add_argument("--internal_batch_max", help="Maximum size of the internal batch", type=int, default=None)
     parser.add_argument("--last_dropout"      , help="Last dropout", type=float, default=0.2)
