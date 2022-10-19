@@ -19,6 +19,7 @@ from sparsechem import censored_mse_loss_numpy
 from collections import namedtuple
 from scipy.sparse import csr_matrix
 from tensorboard.backend.event_processing import plugin_event_multiplexer as event_multiplexer  # pylint: disable=line-too-long
+import argparse
 
 class Nothing(object):
     def __getattr__(self, name):
@@ -196,6 +197,9 @@ def all_metrics(y_true, y_score, cal_fact_aucpr_task):
     return df
 
 def compute_corr(x, y):
+    """
+    Compute correlation     
+    """
     if len(y) <= 1:
         return np.nan
     ystd = y.std()
@@ -205,6 +209,16 @@ def compute_corr(x, y):
     return np.dot((x - x.mean()), (y - y.mean())) / len(y) / y.std() / x.std()
 
 def all_metrics_regr(y_true, y_score, y_censor=None):
+    """
+    Calculate Regression Metrics 
+        y_true     true labels (0 / 1)
+        y_score    logit values
+    Returns:
+        dataframe with 
+        rmse
+        rmse_uncen      rmse on uncensored obervations ?
+
+    """
     if len(y_true) <= 1:
         df = pd.DataFrame({"rmse": [np.nan], "rmse_uncen": [np.nan], "rsquared": [np.nan], "corrcoef": [np.nan]})
         return df
@@ -282,6 +296,12 @@ def compute_metrics_regr(cols, y_true, y_score, num_tasks, y_censor=None):
     return metrics.reindex(np.arange(num_tasks))
 
 def class_fold_counts(y_class, folding):
+    """
+    Create matrix containing number of pos/neg labels falling into the folding scheme
+
+    If the folding consists of 5 unique folds, we sum the number of Y's falling into each fold by 
+    Y class. Result is 5 x 100
+    """
     folds = np.unique(folding)
     num_pos = []
     num_neg = []
@@ -434,6 +454,7 @@ def train_binary(net, optimizer, loader, loss, dev, task_weights, normalize_loss
                     b["x_ind"],
                     b["x_data"],
                     size = [b["batch_size"], loader.dataset.input_size]).to(dev)
+                    
         y_ind   = b["y_ind"].to(dev)
         y_w     = task_weights[y_ind[1]]
         y_data  = b["y_data"].to(dev)
@@ -462,8 +483,14 @@ def train_binary(net, optimizer, loader, loss, dev, task_weights, normalize_loss
         optimizer.step()
     return logloss_sum / logloss_count
 
+##
+## batch_forward
+##
 def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weights_regr, censored_weight=[], dev="cpu", normalize_inv=None, y_cat_columns=None):
     """returns full outputs from the network for the batch b"""
+    ## Convert input data to coo tensor
+    print(f"weights_class : {weights_class.shape}  {weights_class}")
+
     X = torch.sparse_coo_tensor(
         b["x_ind"],
         b["x_data"],
@@ -489,8 +516,8 @@ def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weig
     
     if net.class_output_size > 0:
         yc_ind  = b["yc_ind"].to(dev, non_blocking=True)
+        yc_data = b["yc_data"].to(dev, non_blocking=True)                
         yc_w    = weights_class[yc_ind[1]]
-        yc_data = b["yc_data"].to(dev, non_blocking=True)
         yc_hat  = yc_hat_all[yc_ind[0], yc_ind[1]]
         out["yc_ind"]  = yc_ind
         out["yc_data"] = yc_data
@@ -509,10 +536,20 @@ def batch_forward(net, b, input_size, loss_class, loss_regr, weights_class, weig
             out["yc_cat_loss"] = loss_class(yc_cat_hat, yc_cat_data).sum() 
 
 
+        print(f"yc_ind[0]  ({yc_ind[0].shape}) : {yc_ind[0]}")
+        print(f"yc_ind[1]  ({yc_ind[1].shape}) : {yc_ind[1]}")
+        print(f"yc_data    ({  yc_data.shape}) : {yc_data}")
+        print(f"yc_hat     ({   yc_hat.shape}) : {yc_hat}")
+        print(f"yc_w       ({     yc_w.shape}) :  {yc_w}")
+        print(f"yc_loss        : {loss_class(yc_hat, yc_data)}")
+        print(f"yc_loss * yc_w : {loss_class(yc_hat, yc_data) * yc_w}")
+        print(f"(yc_loss * yc_w).sum() : {(loss_class(yc_hat, yc_data) * yc_w).sum()}")
+        print(f"yc_w.sum()     : {yc_w.sum()}")
+
     if net.regr_output_size > 0:
         yr_ind  = b["yr_ind"].to(dev, non_blocking=True)
-        yr_w    = weights_regr[yr_ind[1]]
         yr_data = b["yr_data"].to(dev, non_blocking=True)
+        yr_w    = weights_regr[yr_ind[1]]
         yr_hat  = yr_hat_all[yr_ind[0], yr_ind[1]]
 
         out["ycen_data"] = b["ycen_data"]
@@ -537,12 +574,21 @@ def train_class_regr(net, optimizer, loader, loss_class, loss_regr, dev,
                      weights_class, weights_regr, censored_weight,
                      normalize_loss=None, num_int_batches=1, progress=True, reporter=None, writer=None, epoch=0, args=None, scaler=None, nvml_handle=None):
 
+    
+    ## Set the model in training mode.
     net.train()
 
     int_count = 0
+    loop_ctr = 0 
     batch_count = 0
     #scaler = torch.cuda.amp.GradScaler()
     for b in tqdm(loader, leave=False, disable=(progress == False)):
+        loop_ctr += 1
+        
+        print('-'*50)
+        print(f"  Loop # {loop_ctr}")
+        print('-'*50)
+        
         if int_count == 0:
             optimizer.zero_grad()
 
@@ -577,7 +623,6 @@ def train_class_regr(net, optimizer, loader, loss_class, loss_regr, dev,
         loss = fwd["yc_loss"] + fwd["yr_loss"] + fwd["yc_cat_loss"] + net.GetRegularizer()
 
         loss_norm = loss / norm
- 
         if mixed_precision:
            scaler.scale(loss_norm).backward()
         else:
@@ -602,6 +647,10 @@ def train_class_regr(net, optimizer, loader, loss_class, loss_regr, dev,
            int_count = 0
            batch_count+=1
 
+        # temporarily placed to stop loop         
+        if loop_ctr == 3:
+            break
+    
     if int_count > 0:
         ## process tail batch (should not happen)
         if mixed_precision and not isinstance(optimizer,Nothing):
@@ -618,6 +667,7 @@ def aggregate_results(df, weights):
         return pd.Series(np.nan, index=df.columns)
     df2 = df.where(pd.isnull, 1) * weights[:,None]
     return (df2.multiply(1.0 / df2.sum(axis=0), axis=1) * df).sum(axis=0)
+
 
 def evaluate_class_regr(net, loader, loss_class, loss_regr, tasks_class, tasks_regr, dev, progress=True, normalize_inv=None, cal_fact_aucpr=1):
     class_w = tasks_class.aggregation_weight
@@ -755,6 +805,7 @@ def predict_hidden(net, loader, dev, progress=True, dropout=False):
     return torch.cat(out_list, dim=0)
 
 class SparseCollector(object):
+    
     def __init__(self, label):
         self.y_hat_list = []
         self.y_row_list = []
@@ -854,6 +905,7 @@ def fold_transform_inputs(x, folding_size=None, transform="none"):
         x.data = np.log1p(x.data).astype(np.float32)
     else:
         raise ValueError(f"Unknown input transformation '{transform}'.")
+        
     return x
 
 def set_weights(net, filename="./tf_h400_inits.npy"):
@@ -891,27 +943,34 @@ def load_check_sparse(filename, shape):
     return y
 
 def load_task_weights(filename, y, label):
-    """Loads and processes task weights, otherwise raises an error using the label.
+    """
+    Loads and processes task weights, otherwise raises an error using the label.
     Args:
         df      DataFrame with weights
         y       csr matrix of labels
         label   name for error messages
+    
     Returns tuple of
         training_weight
         aggregation_weight
         task_type
     """
+    print(f" load_task_weights - filename: {filename} label: {label}")
     res = types.SimpleNamespace(task_id=None, training_weight=None, aggregation_weight=None, task_type=None, censored_weight=torch.FloatTensor(), cat_id=None)
+
     if y is None:
-        assert filename is None, f"Weights provided for {label}, please add also --{label}"
+        assert filename is None, f"Weights file {filename} provided for {label}, please add also --{label}"
         res.training_weight = torch.ones(0)
         return res
 
     if filename is None:
+        print(f" load_task_weights - no weights file provided, training_weights for all classes set to 1")
         res.training_weight = torch.ones(y.shape[1])
         return res
 
     df = pd.read_csv(filename)
+    
+    ## verify presence of proper column names
     df.rename(columns={"weight": "training_weight"}, inplace=True)
     ## also supporting plural form column names:
     df.rename(columns={c + "s": c for c in ["task_id", "training_weight", "aggregation_weight", "task_type", "censored_weight"]}, inplace=True)
@@ -937,8 +996,10 @@ def load_task_weights(filename, y, label):
     if "aggregation_weight" in df:
         assert (0 <= df.aggregation_weight).all(), f"Found negative aggregation_weight for {label}. Aggregation weights must be non-negative."
         res.aggregation_weight = df.aggregation_weight.values
+
     if "task_type" in df:
         res.task_type = df.task_type.values
+
     if "censored_weight" in df:
         assert (0 <= df.censored_weight).all(), f"Found negative censored_weight for {label}. Censored weights must be non-negative."
         res.censored_weight = torch.FloatTensor(df.censored_weight.values)
@@ -1020,3 +1081,47 @@ def keep_row_data(y, keep):
     ycoo = y.tocoo()
     mask = keep[ycoo.row]
     return csr_matrix((ycoo.data[mask], (ycoo.row[mask], ycoo.col[mask])), shape=y.shape)
+
+def training_arguments():
+    parser = argparse.ArgumentParser(description="Training a multi-task model.")
+    parser.add_argument("--x"                 , help="Descriptor file (matrix market, .npy or .npz)", type=str, default=None)
+    parser.add_argument("--y_class", "--y", "--y_classification", help="Activity file (matrix market, .npy or .npz)", type=str, default=None)
+    parser.add_argument("--y_regr" , "--y_regression", help="Activity file (matrix market, .npy or .npz)", type=str, default=None)
+    parser.add_argument("--y_censor"          , help="Censor mask for regression (matrix market, .npy or .npz)", type=str, default=None)
+    parser.add_argument("--batch_ratio"       , help="Batch ratio", type=float, default=0.02)
+    parser.add_argument("--censored_loss"     , help="Whether censored loss is used for training (default 1)", type=int, default=1)
+    parser.add_argument("--dev"               , help="Device to use", type=str, default="cuda:0")
+    parser.add_argument("--epochs"            , help="Number of epochs", type=int, default=20)
+    parser.add_argument("--eval_train"        , help="Set this to 1 to calculate AUCs for train data", type=int, default=0)
+    parser.add_argument("--eval_frequency"    , help="The gap between AUC eval (in epochs), -1 means to do an eval at the end.", type=int, default=1)
+    parser.add_argument("--folding"           , help="Folding file (npy)", type=str, required=True)
+    parser.add_argument("--fold_inputs"       , help="Fold input to a fixed set (default no folding)", type=int, default=None)
+    parser.add_argument("--fold_va"           , help="Validation fold number", type=int, default=0)
+    parser.add_argument("--fold_te"           , help="Test fold number (removed from dataset)", type=int, default=None)
+    parser.add_argument("--hidden_sizes"      , nargs="+", help="Hidden sizes", default=[], type=int, required=True)
+    parser.add_argument("--input_transform"   , help="Transformation to apply to inputs", type=str, default="none", choices=["binarize", "none", "tanh", "log1p"])
+    # parser.add_argument("--input_size"      , help="Input size", type=int, default=None)
+    # parser.add_argument("--tail_hidden_size"  , help="Tail Hidden size", default=0, type=int)
+    parser.add_argument("--input_size_freq"   , help="Number of high importance features", type=int, default=None)
+    parser.add_argument("--internal_batch_max", help="Maximum size of the internal batch", type=int, default=None)
+    parser.add_argument("--last_dropout"      , help="Last dropout", type=float, default=0.2)
+    parser.add_argument("--last_non_linearity", help="Last layer non-linearity", type=str, default="relu", choices=["relu", "tanh"])
+    parser.add_argument("--lr"                , help="Learning rate", type=float, default=1e-3)
+    parser.add_argument("--lr_alpha"          , help="Learning rate decay multiplier", type=float, default=0.3)
+    parser.add_argument("--lr_steps"          , nargs="+", help="Learning rate decay steps", type=int, default=[10])
+    parser.add_argument("--middle_dropout"    , help="Dropout for layers before the last", type=float, default=0.0)
+    parser.add_argument("--middle_non_linearity", "--non_linearity", help="Before last layer non-linearity", type=str, default="relu", choices=["relu", "tanh"])
+    parser.add_argument("--min_samples_class", help="Minimum number samples in each class and in each fold for AUC calculation (only used if aggregation_weight is not provided in --weights_class)", type=int, default=5)
+    parser.add_argument("--min_samples_auc"  , help="Obsolete: use 'min_samples_class'", type=int, default=None)
+    parser.add_argument("--min_samples_regr" , help="Minimum number of uncensored samples in each fold for regression metric calculation (only used if aggregation_weight is not provided in --weights_regr)", type=int, default=10)
+    parser.add_argument("--normalize_loss"   , help="Normalization constant to divide the loss (default uses batch size)", type=float, default=None)
+    parser.add_argument("--output_dir"       , help="Output directory, including boards (default 'models')", type=str, default="models")
+    parser.add_argument("--prefix"           , help="Prefix for run name (default 'run')", type=str, default='run')
+    parser.add_argument("--run_name"         , help="Run name for results", type=str, default=None)
+    parser.add_argument("--save_model"       , help="Set this to 0 if the model should not be saved", type=int, default=1)
+    parser.add_argument("--save_board"       , help="Set this to 0 if the TensorBoard should not be saved", type=int, default=1)
+    parser.add_argument("--verbose"          , help="Verbosity level: 2 = full; 1 = no progress; 0 = no output", type=int, default=2, choices=[0, 1, 2])
+    parser.add_argument("--weights_class"    , "--task_weights", "--weights_classification", help="CSV file with columns task_id, training_weight, aggregation_weight, task_type (for classification tasks)", type=str, default=None)
+    parser.add_argument("--weight_decay"     , help="Weight decay", type=float, default=0.0)
+    parser.add_argument("--weights_regr"     , "--weights_regression", help="CSV file with columns task_id, training_weight, censored_weight, aggregation_weight, aggregation_weight, task_type (for regression tasks)", type=str, default=None)
+    return parser

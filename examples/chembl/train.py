@@ -1,13 +1,14 @@
 # Copyright (c) 2020 KU Leuven
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+from sparsechem.utils import training_arguments
 import sparsechem as sc
 import scipy.io
 import scipy.sparse
 import numpy as np
 import pandas as pd
 import torch
-import argparse
+# import argparse
 import os
 import sys
 import os.path
@@ -17,6 +18,7 @@ import functools
 import csv
 #from apex import amp
 from contextlib import redirect_stdout
+import pprint  
 from sparsechem import Nothing
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import MultiStepLR
@@ -30,6 +32,8 @@ if torch.cuda.is_available():
 # import multiprocessing
 # multiprocessing.set_start_method('fork', force=True)
 
+pp = pprint.PrettyPrinter(indent=4)
+# pp.pprint(sys.path)
 
 parser = argparse.ArgumentParser(description="Training a multi-task model.")
 parser.add_argument("--x", help="Descriptor file (matrix market, .npy or .npz)", type=str, default=None)
@@ -109,9 +113,12 @@ if args.hidden_sizes is not None:
 def vprint(s=""):
     if args.verbose:
         print(s)
+vprint(f"\nArgs : \n--------------")
+# vprint(args)
 
-vprint(args)
-
+##
+## Generate runname if one wasn't provided in input args 
+##
 if args.class_feature_size == -1:
     args.class_feature_size = args.hidden_sizes[-1]
 if args.regression_feature_size == -1:
@@ -132,44 +139,72 @@ else:
     name += f"_fva{args.fold_va}_fte{args.fold_te}"
     if args.mixed_precision == 1:
         name += f"_mixed_precision"
-vprint(f"Run name is '{name}'.")
+vprint(f"\nRun name is '{name}'.")
 
 if args.profile == 1:
     assert (args.save_board==1), "Tensorboard should be enabled to be able to profile memory usage."
+##
+## if args.save_board, Setup tensorboard writer
+##
 if args.save_board:
     tb_name = os.path.join(args.output_dir, "boards", name)
+    vprint(f"\nargs.save_board is '{args.save_board}' - will be written to {tb_name}.")
     writer  = SummaryWriter(tb_name)
 else:
     writer = Nothing()
+
 assert args.input_size_freq is None, "Using tail compression not yet supported."
 
+## Verify presence of Y label data
 if (args.y_class is None) and (args.y_regr is None):
     raise ValueError("No label data specified, please add --y_class and/or --y_regr.")
 
+##
+## Load data files 
+##
 ecfp     = sc.load_sparse(args.x)
 y_class  = sc.load_sparse(args.y_class)
 y_regr   = sc.load_sparse(args.y_regr)
 y_censor = sc.load_sparse(args.y_censor)
 
+vprint(f"\n\n")
+vprint(f"ecfp shape           : {ecfp.shape}")
+vprint(f"y_class shape        : {y_class.shape}")
+
+if (y_regr is not None):
+    vprint(f"y_regr shape         : {y_regr.shape}")
+
+if (y_censor is not None):
+    vprint(f"y_censor shape       : {y_censor.shape}")
+
 if (y_regr is None) and (y_censor is not None):
     raise ValueError("y_censor provided please also provide --y_regr.")
+
 if y_class is None:
     y_class = scipy.sparse.csr_matrix((ecfp.shape[0], 0))
+    vprint(f"Created y_class shape        : {y_class.shape}")
+
 if y_regr is None:
     y_regr  = scipy.sparse.csr_matrix((ecfp.shape[0], 0))
+    vprint(f"Created y_regr shape         : {y_regr.shape}")
+
 if y_censor is None:
     y_censor = scipy.sparse.csr_matrix(y_regr.shape)
+    vprint(f"Created y_censor shape       : {y_censor.shape}")
 
+##
+## load folding file
+##
 folding = np.load(args.folding)
 assert ecfp.shape[0] == folding.shape[0], "x and folding must have same number of rows"
 
-## Loading task weights
-tasks_class = sc.load_task_weights(args.weights_class, y=y_class, label="y_class")
-tasks_regr  = sc.load_task_weights(args.weights_regr, y=y_regr, label="y_regr")
 
-## Input transformation
+##
+## Input folding & transformation
+##
 ecfp = sc.fold_transform_inputs(ecfp, folding_size=args.fold_inputs, transform=args.input_transform)
 print(f"count non zero:{ecfp[0].count_nonzero()}")
+## Get number of positive / neg and total for each classes
 num_pos    = np.array((y_class == +1).sum(0)).flatten()
 num_neg    = np.array((y_class == -1).sum(0)).flatten()
 num_class  = np.array((y_class != 0).sum(0)).flatten()
@@ -180,7 +215,16 @@ num_regr   = np.bincount(y_regr.indices, minlength=y_regr.shape[1])
 
 assert args.min_samples_auc is None, "Parameter 'min_samples_auc' is obsolete. Use '--min_samples_class' that specifies how many samples a task needs per FOLD and per CLASS to be aggregated."
 
+##
+## Loading weights files for tasks(Classification, Regression)
+##
+tasks_class = sc.load_task_weights(args.weights_class, y=y_class, label="y_class")
+tasks_regr  = sc.load_task_weights(args.weights_regr, y=y_regr, label="y_regr")
+
 if tasks_class.aggregation_weight is None:
+    '''
+    fold classes 
+    '''
     ## using min_samples rule
     fold_pos, fold_neg = sc.class_fold_counts(y_class, folding)
     n = args.min_samples_class
@@ -194,14 +238,18 @@ if tasks_regr.aggregation_weight is None:
         ## only counting uncensored data
         y_regr2      = y_censor.copy()
         y_regr2.data = (y_regr2.data == 0).astype(np.int32)
+  
     fold_regr, _ = sc.class_fold_counts(y_regr2, folding)
     del y_regr2
     tasks_regr.aggregation_weight = (fold_regr >= args.min_samples_regr).all(0).astype(np.float64)
 
-vprint(f"Input dimension: {ecfp.shape[1]}")
-vprint(f"#samples:        {ecfp.shape[0]}")
-vprint(f"#classification tasks:  {y_class.shape[1]}")
-vprint(f"#regression tasks:      {y_regr.shape[1]}")
+##
+## Display dataset dimensions 
+##
+vprint(f"Input dimension      : {ecfp.shape[1]}")
+vprint(f"#samples             : {ecfp.shape[0]}")
+vprint(f"#classification tasks: {y_class.shape[1]}")
+vprint(f"#regression tasks    : {y_regr.shape[1]}")
 vprint(f"Using {(tasks_class.aggregation_weight > 0).sum()} classification tasks for calculating aggregated metrics (AUCROC, F1_max, etc).")
 vprint(f"Using {(tasks_regr.aggregation_weight > 0).sum()} regression tasks for calculating metrics (RMSE, Rsquared, correlation).")
 
@@ -212,7 +260,7 @@ if args.fold_te is not None and args.fold_te >= 0:
     ecfp    = ecfp[keep]
     y_class = y_class[keep]
     y_regr  = y_regr[keep]
-    y_censor = y_censor[keep]
+    y_censor= y_censor[keep]
     folding = folding[keep]
 
 normalize_inv = None
@@ -224,8 +272,10 @@ idx_va  = np.where(folding == fold_va)[0]
 
 y_class_tr = y_class[idx_tr]
 y_class_va = y_class[idx_va]
+
 y_regr_tr  = y_regr[idx_tr]
 y_regr_va  = y_regr[idx_va]
+
 y_censor_tr = y_censor[idx_tr]
 y_censor_va = y_censor[idx_va]
 
@@ -262,6 +312,9 @@ if tasks_class.cat_id is not None:
 else:
     cat_id_size = 0
 
+##
+## Instantiate datasets
+##
 dataset_tr = sc.ClassRegrSparseDataset(x=ecfp[idx_tr], y_class=y_class_tr, y_regr=y_regr_tr, y_censor=y_censor_tr, y_cat_columns=select_cat_ids)
 dataset_va = sc.ClassRegrSparseDataset(x=ecfp[idx_va], y_class=y_class_va, y_regr=y_regr_va, y_censor=y_censor_va, y_cat_columns=select_cat_ids)
 
@@ -275,13 +328,25 @@ args.class_output_size = dataset_tr.class_output_size
 args.regr_output_size  = dataset_tr.regr_output_size
 args.cat_id_size = cat_id_size
 
+##
+## Instantiate Model
+##
 dev  = torch.device(args.dev)
+print(' Torch device: ', dev)
 net  = sc.SparseFFN(args).to(dev)
+
+##
+## Define Loss functions 
+##
 loss_class = torch.nn.BCEWithLogitsLoss(reduction="none")
 loss_regr  = sc.censored_mse_loss
+
 if not args.censored_loss:
     loss_regr = functools.partial(loss_regr, censored_enabled=False)
 
+##
+## Definie Class/Regr/Censored  Weights
+## 
 tasks_class.training_weight = tasks_class.training_weight.to(dev)
 tasks_regr.training_weight  = tasks_regr.training_weight.to(dev)
 tasks_regr.censored_weight  = tasks_regr.censored_weight.to(dev)
@@ -310,6 +375,9 @@ if args.profile == 1:
         with redirect_stdout(profile_file):
              profile_file.write(f"\nInitial model detailed report:\n\n")
              reporter.report()
+##
+## Define Optimizer and Training scheduler
+##
 optimizer = torch.optim.Adam(net.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 scheduler = MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_alpha)
 
@@ -347,15 +415,30 @@ for epoch in range(args.epochs):
     last_round = epoch == args.epochs - 1
 
     if eval_round or last_round:
-        results_va = sc.evaluate_class_regr(net, loader_va, loss_class, loss_regr, tasks_class=tasks_class, tasks_regr=tasks_regr, dev=dev, progress = args.verbose >= 2, normalize_inv=normalize_inv, cal_fact_aucpr=cal_fact_aucpr)
-   #     import ipdb; ipdb.set_trace()
+        results_va = sc.evaluate_class_regr(net, 
+                                            loader_va, 
+                                            loss_class, 
+                                            loss_regr, 
+                                            tasks_class=tasks_class, 
+                                            tasks_regr=tasks_regr, 
+                                            dev=dev, 
+                                            progress = args.verbose >= 2)
+        
         for key, val in results_va["classification_agg"].items():
             writer.add_scalar(key+"/va", val, epoch)
         for key, val in results_va["regression_agg"].items():
             writer.add_scalar(key+"/va", val, epoch)
 
         if args.eval_train:
-            results_tr = sc.evaluate_class_regr(net, loader_tr, loss_class, loss_regr, tasks_class=tasks_class, tasks_regr=tasks_regr, dev=dev, progress = args.verbose >= 2)
+            results_tr = sc.evaluate_class_regr(net, 
+                                                loader_tr, 
+                                                loss_class, 
+                                                loss_regr, 
+                                                tasks_class=tasks_class, 
+                                                tasks_regr=tasks_regr, 
+                                                dev=dev, 
+                                                progress = args.verbose >= 2)
+            
             for key, val in results_tr["classification_agg"].items():
                 writer.add_scalar(key+"/tr", val, epoch)
             for key, val in results_tr["regression_agg"].items():
@@ -411,4 +494,4 @@ if args.normalize_regression == 1 :
    stats["var"]  = np.array(var_save)[0]
 sc.save_results(out_file, args, validation=results_va, training=results_tr, stats=stats)
 
-vprint(f"Saved config and results into '{out_file}'.\nYou can load the results by:\n  import sparsechem as sc\n  res = sc.load_results('{out_file}')")
+vprint(f"Saved config and results into '{out_file}'.\nYou can load the results by:\n  import sparsechem as sc\n  res = sc.load_results('{out_file}')\n")

@@ -11,7 +11,7 @@ class SparseDataset(Dataset):
     def __init__(self, x, y):
         '''
         Args:
-            X (sparse matrix):  input [n_sampes, features_in]
+            X (sparse matrix):  input [n_samples, features_in]
             Y (sparse matrix):  output [n_samples, features_out]
         '''
         assert x.shape[0]==y.shape[0], f"Input has {x.shape[0]} rows, output has {y.shape[0]} rows."
@@ -93,9 +93,17 @@ def get_row(csr, row):
 
 def to_idx_tensor(idx_list):
     """Turns list of lists [num_lists, 2] tensor of coordinates"""
+    # print(f" idx_list  {len(idx_list)}")
+    # for i in idx_list:
+    #     print(f" idx_list  {len(i)} \n {i}")
+
     xrow = np.repeat(np.arange(len(idx_list)), [len(i) for i in idx_list])
     xcol = np.concatenate(idx_list)
+    # print(f" xrow  {xrow.shape}  {xrow.dtype}   {xrow}")
+    # print(f" xcol  {xcol.shape}  {xcol.dtype}   {xcol[:20]}")
     return torch.LongTensor(np.array([xrow, xcol]))
+
+    # return torch.LongTensor([xrow, xcol])
 
 def patterns_match(x, y):
     if y.shape != x.shape:             return False
@@ -110,8 +118,8 @@ class ClassRegrSparseDataset(Dataset):
         Creates dataset for two outputs Y.
         Args:
             x (sparse matrix):        input [n_sampes, features_in]
-            y_class (sparse matrix):  class data [n_samples, class_tasks]
-            y_regr (sparse matrix):   regression data [n_samples, regr_tasks]
+            y_class  (sparse matrix): class data [n_samples, class_tasks]
+            y_regr   (sparse matrix): regression data [n_samples, regr_tasks]
             y_censor (sparse matrix): censoring matrix, for regression data [n_samples, regr_task]
             y_cat_columns (numpy array): column indices representing catalogue task [n_cat_tasks]
         '''
