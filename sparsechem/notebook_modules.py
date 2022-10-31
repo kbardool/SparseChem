@@ -67,7 +67,8 @@ def init_wandb(ns, args, resume = "allow" ):
                               id      = args.exp_id, 
                               name    = args.exp_name,
                               notes   = args.exp_desc,                                     
-                              resume  = resume )
+                              resume  = resume, 
+                              settings=wandb.Settings(start_method='thread'))
     wandb.config.update(args)
 
     print(f" PROJECT NAME: {ns.wandb_run.project}\n"
