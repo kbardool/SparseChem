@@ -90,15 +90,10 @@ def check_for_improvement(ns, metrics):
         print(f' Previous best_epoch: {ns.best_epoch:5d}    '
               f'   best_accuracy: {ns.best_accuracy:.5f}    best ROC auc: {ns.best_roc_auc:.5f}')        
 
-        ns.best_accuracy   = metrics['classification_agg']['avg_prec_score']
-        ns.best_roc_auc = metrics['classification_agg']['roc_auc_score']
-        ns.best_metrics = metrics
-        ns.best_epoch   = ns.current_epoch
-     
-        wandb.log({"best_roc_auc"   : ns.best_roc_auc,
-                   "best_accuracy"  : ns.best_accuracy,
-                   "best_epoch"     : ns.best_epoch }, 
-                   step = ns.current_epoch)
+        ns.best_accuracy = metrics['classification_agg']['avg_prec_score']
+        ns.best_roc_auc  = metrics['classification_agg']['roc_auc_score']
+        ns.best_metrics  = metrics
+        ns.best_epoch    = ns.current_epoch
      
         print(f' New      best_epoch: {ns.best_epoch:5d}    '
               f'   best_accuracy: {ns.best_accuracy:.5f}    best ROC auc: {ns.best_roc_auc:.5f}')        
@@ -106,7 +101,12 @@ def check_for_improvement(ns, metrics):
 #         model_label     = 'model_best_seed_%04d' % (opt['random_seed'])
 #         environ.save_checkpoint(model_label, ns.current_iter, ns.current_epoch) 
 #         metrics_label = 'metrics_best_seed_%04d.pickle' % (opt['random_seed'])
-#         save_to_pickle(environ.val_metrics, environ.opt['paths']['checkpoint_dir'], metrics_label)    
+#         save_to_pickle(environ.val_metrics, environ.opt['paths']['checkpoint_dir'], metrics_label) 
+
+    wandb.log({"best_roc_auc"   : ns.best_roc_auc,
+                "best_accuracy"  : ns.best_accuracy,
+                "best_epoch"     : ns.best_epoch }, 
+                step = ns.current_epoch)   
     return
 
 def get_command_line_args(input = None, display = True):
@@ -295,3 +295,85 @@ def assertions(args):
         raise ValueError("No label data specified, please add --y_class and/or --y_regr.")    
 
     print("All assertions passed successfully")
+    
+
+# def disp_gpu_device_info():
+#     import torch
+#     print(' GPU Device Info ')
+#     print(' --------------- ')
+#     for i in range(torch.cuda.device_count()):
+#         print(f" Device : cuda:{i}")
+#         print('   name:       ', torch.cuda.get_device_name(i))
+#         print('   capability: ', torch.cuda.get_device_capability(i))
+#         print('   properties: ', torch.cuda.get_device_properties(i))
+#         ## current GPU memory usage by tensors in bytes for a given device
+#         print('   Allocated : ', torch.cuda.memory_allocated(i) ) 
+#         ## current GPU memory managed by caching allocator in bytes for a given device, 
+#         ## in previous PyTorch versions the command was torch.cuda.memory_cached
+#         print('   Reserved  : ', torch.cuda.memory_reserved(i) )   
+#         print()
+
+
+def display_gpu_info():
+    import torch
+    from GPUtil import showUtilization as gpu_usage
+    from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex ,nvmlDeviceGetMemoryInfo   
+
+    if torch.cuda.is_available():
+        torch_gpu_id = torch.cuda.current_device()
+        print(' CUDA Device(s) available')
+        print('-------------------------')
+        print(' CUDA device count   : ', torch.cuda.device_count())
+        print(' CUDA current device : ', torch_gpu_id, '  name: ', torch.cuda.get_device_name(torch_gpu_id))
+        print(' GPU Processes       : \n', torch.cuda.list_gpu_processes())
+        print()
+
+
+        print(' GPU Device Info ')
+        print(' --------------- ')
+        for i in range(torch.cuda.device_count()):
+            print(f" Device : cuda:{i}")
+            print('   name:       ', torch.cuda.get_device_name(i))
+            print('   capability: ', torch.cuda.get_device_capability(i))
+            print('   properties: ', torch.cuda.get_device_properties(i))
+            ## current GPU memory usage by tensors in bytes for a given device
+            print('   Allocated : ', torch.cuda.memory_allocated(i) ) 
+            ## current GPU memory managed by caching allocator in bytes for a given device, 
+            ## in previous PyTorch versions the command was torch.cuda.memory_cached
+            print('   Reserved  : ', torch.cuda.memory_reserved(i) )   
+            print()
+            
+        nvmlInit()              
+
+        print(' GPU Usage Stats ')
+        print(' --------------- ')        
+        gpu_usage()     
+        print()
+        # print_underline('torch.device() : ', verbose=True)
+        # device = torch.device(torch.cuda.current_device() if torch.cuda.is_available() else "cpu")
+        # print(device)
+        # torch.cuda package supports CUDA tensor types but works with GPU computations. Hence, if GPU is used, it is common to use CUDA. 
+        # torch.cuda.device_count()
+        # torch.cuda.current_device()
+        # torch.cuda.get_device_name(0)
+
+        print(' torch.cuda.current-device(): ', torch_gpu_id)
+        if "CUDA_VISIBLE_DEVICES" in os.environ:
+            ids = list(map(int, os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")))
+            print(' ids : ', ids)
+            nvml_gpu_id = ids[torch_gpu_id] # remap
+        else:
+            nvml_gpu_id = torch_gpu_id
+        
+
+        print(f" nvml_gpu_id: {nvml_gpu_id}")
+        nvml_handle = nvmlDeviceGetHandleByIndex(nvml_gpu_id)
+        # print(f" nvml handle: {nvml_handle}")
+        info = nvmlDeviceGetMemoryInfo(nvml_handle)
+        print()
+        print(f" nvml Device Memory Info")
+        print(f' -----------------------')        
+        print('',info)
+        
+    else :
+        print_underline(' No CUDA devices found ',verbose=True)    
